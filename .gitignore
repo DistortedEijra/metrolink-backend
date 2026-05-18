@@ -16,3 +16,6 @@ Thumbs.db
 
 # Credentials — never commit these
 src/main/resources/config.properties
+
+# Machine-specific launcher config
+launcher/launcher.config

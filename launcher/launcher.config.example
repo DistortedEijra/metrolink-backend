@@ -1,0 +1,29 @@
+# =============================================================
+# Metrolink FOMS - Launcher Configuration
+# =============================================================
+# Copy this file to:  launcher.config
+# Then edit the paths below to match YOUR machine.
+#
+# Lines starting with # are comments (ignored).
+# Leave a value blank to let the launcher auto-detect it.
+# =============================================================
+
+# Path to your Java JDK installation (version 21 or higher required)
+# Auto-detects from JAVA_HOME environment variable if left blank.
+# Examples:
+#   C:\Program Files\Java\jdk-22
+#   C:\Program Files\Eclipse Adoptium\jdk-21.0.3.9-hotspot
+JAVA_HOME=
+
+# Path to your Apache Tomcat installation (version 10+ required)
+# Auto-detects from CATALINA_HOME environment variable if left blank.
+# Examples:
+#   C:\Users\YourName\tomcat\apache-tomcat-10.1.39
+#   C:\Program Files\Apache Software Foundation\Tomcat 10.1
+CATALINA_HOME=
+
+# Windows service name for MySQL
+# Auto-detects by trying MySQL80, MySQL8, MySQL57, MySQL5, MySQL
+# Only set this if auto-detection fails.
+# Examples: MySQL80, MySQL57, MySQL
+MYSQL_SERVICE=
