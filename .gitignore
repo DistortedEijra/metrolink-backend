@@ -1,0 +1,18 @@
+# Compiled output
+target/
+
+# IDE files
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+nbproject/
+nb-configuration.xml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials — never commit these
+src/main/resources/config.properties
