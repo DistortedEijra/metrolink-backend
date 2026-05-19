@@ -125,6 +125,9 @@ public class MainForm : Form {
         SetStatus("Starting MySQL...");
         EnsureMySQL();
 
+        SetStatus("Stopping any existing server instance...");
+        StopExistingTomcat();
+
         SetStatus("Starting application server...");
         StartTomcat();
 
@@ -227,8 +230,28 @@ public class MainForm : Form {
     }
 
     // ── Tomcat ────────────────────────────────────────────
+    static void StopExistingTomcat() {
+        try {
+            var psi = new ProcessStartInfo("cmd.exe") {
+                Arguments        = $"/c \"{Path.Combine(catalinaHome, "bin", "shutdown.bat")}\"",
+                WorkingDirectory = catalinaHome,
+                UseShellExecute  = false,
+                CreateNoWindow   = true
+            };
+            psi.EnvironmentVariables["JAVA_HOME"]     = javaHome;
+            psi.EnvironmentVariables["CATALINA_HOME"] = catalinaHome;
+            var p = Process.Start(psi);
+            p?.WaitForExit(6000);
+        } catch { }
+        // Wait up to 8 seconds for port 8080 to free
+        for (int i = 0; i < 16; i++) {
+            if (!PortResponds()) return;
+            Thread.Sleep(500);
+        }
+    }
+
     static void StartTomcat() {
-        if (PortResponds()) return;
+        StopExistingTomcat();
         try {
             var psi = new ProcessStartInfo("cmd.exe") {
                 Arguments        = $"/c \"{Path.Combine(catalinaHome, "bin", "startup.bat")}\"",

@@ -196,8 +196,30 @@ class MetrolinkLauncher {
     }
 
     // ── Tomcat ────────────────────────────────────────────
+    static void StopExistingTomcat() {
+        Step("Stopping any existing Tomcat");
+        try {
+            var psi = new ProcessStartInfo("cmd.exe") {
+                Arguments        = "/c \"" + Path.Combine(catalinaHome, "bin", "shutdown.bat") + "\"",
+                WorkingDirectory = catalinaHome,
+                UseShellExecute  = false,
+                CreateNoWindow   = true
+            };
+            psi.EnvironmentVariables["JAVA_HOME"]     = javaHome;
+            psi.EnvironmentVariables["CATALINA_HOME"] = catalinaHome;
+            var p = Process.Start(psi);
+            p.WaitForExit(6000);
+        } catch { }
+        // Wait for port 8080 to free up (max 8s)
+        for (int i = 0; i < 16; i++) {
+            if (!PortResponds()) { OK("Stopped"); return; }
+            Thread.Sleep(500);
+        }
+        OK("Done");
+    }
+
     static void StartTomcat() {
-        if (PortResponds()) { Step("Tomcat"); OK("Already running"); return; }
+        StopExistingTomcat();
         Step("Starting Tomcat");
         try {
             var psi = new ProcessStartInfo("cmd.exe") {
