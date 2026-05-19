@@ -1,0 +1,148 @@
+================================================================
+  METROLINK FOMS - SETUP GUIDE
+  Financial and Operational Management System
+  Baclaran Metrolink Bus Corporation
+================================================================
+
+Follow these steps IN ORDER before running the application.
+
+----------------------------------------------------------------
+STEP 1 — INSTALL JAVA JDK 21 OR HIGHER
+----------------------------------------------------------------
+  Download: https://adoptium.net
+  - Click "Latest LTS Release"
+  - Download the Windows x64 .msi installer
+  - Run the installer (check "Set JAVA_HOME variable" if asked)
+  - Verify: Open Command Prompt, type:  java --version
+
+----------------------------------------------------------------
+STEP 2 — INSTALL MYSQL 8.0
+----------------------------------------------------------------
+  Download: https://dev.mysql.com/downloads/installer/
+  - Download "MySQL Installer for Windows"
+  - Choose "Developer Default" setup type
+  - Set a root password (you will need this later)
+  - Verify: MySQL should appear in Windows Services as "MySQL80"
+
+----------------------------------------------------------------
+STEP 3 — INSTALL APACHE TOMCAT 10.1
+----------------------------------------------------------------
+  Download: https://tomcat.apache.org/download-10.cgi
+  - Under "Binary Distributions > Core", download the ZIP file
+    (e.g. apache-tomcat-10.1.x-windows-x64.zip)
+  - Extract it to a folder, e.g.:
+      C:\Users\YourName\tomcat\apache-tomcat-10.1.x
+  - Do NOT run as a Windows service — the app launcher handles it
+
+----------------------------------------------------------------
+STEP 4 — INSTALL .NET 9 DESKTOP RUNTIME
+----------------------------------------------------------------
+  (Required only for the desktop app exe)
+  Download: https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+  - Under ".NET Desktop Runtime 9.x", download the x64 installer
+  - Run the installer
+  - Verify: Open Command Prompt, type:  dotnet --list-runtimes
+
+----------------------------------------------------------------
+STEP 5 — INSTALL MAVEN (for building the backend)
+----------------------------------------------------------------
+  Download: https://archive.apache.org/dist/maven/maven-3/3.9.6/binaries/
+  - Download: apache-maven-3.9.6-bin.zip
+  - Extract to a folder, e.g.: C:\Users\YourName\maven\apache-maven-3.9.6
+  - Add to PATH: C:\Users\YourName\maven\apache-maven-3.9.6\bin
+  - Verify: Open Command Prompt, type:  mvn --version
+
+----------------------------------------------------------------
+STEP 6 — SET UP THE DATABASE
+----------------------------------------------------------------
+  a) Open MySQL Command Line or MySQL Workbench
+  b) Create the database:
+       CREATE DATABASE metrolink_db;
+  c) Run the schema file to create tables:
+       mysql -u root -p metrolink_db < src\main\resources\schema.sql
+
+----------------------------------------------------------------
+STEP 7 — CONFIGURE DATABASE CREDENTIALS
+----------------------------------------------------------------
+  a) Go to:  src\main\resources\
+  b) Copy:   config.properties.example
+  c) Rename the copy to:  config.properties
+  d) Open config.properties and set your MySQL password:
+       db.username=root
+       db.password=YOUR_MYSQL_PASSWORD_HERE
+  e) Save the file
+
+----------------------------------------------------------------
+STEP 8 — BUILD THE BACKEND
+----------------------------------------------------------------
+  Open Command Prompt in the project folder and run:
+    mvn clean package
+
+  This creates:  target\metrolink-backend.war
+
+----------------------------------------------------------------
+STEP 9 — DEPLOY TO TOMCAT
+----------------------------------------------------------------
+  a) Copy  target\metrolink-backend.war  to:
+       C:\Users\YourName\tomcat\apache-tomcat-10.1.x\webapps\
+
+  b) Copy the entire  frontend\  folder to:
+       C:\Users\YourName\tomcat\apache-tomcat-10.1.x\webapps\metrolink-frontend\
+
+     (The folder name must be exactly "metrolink-frontend")
+
+----------------------------------------------------------------
+STEP 10 — CONFIGURE THE DESKTOP APP LAUNCHER (optional)
+----------------------------------------------------------------
+  If the app does not auto-detect your Java/Tomcat paths:
+
+  a) Go to:  desktop-app\release\
+  b) Create a new text file named:  launcher.config
+  c) Add these lines (adjust paths to match your machine):
+
+       JAVA_HOME=C:\Program Files\Java\jdk-22
+       CATALINA_HOME=C:\Users\YourName\tomcat\apache-tomcat-10.1.x
+       MYSQL_SERVICE=MySQL80
+
+  d) Save the file
+
+----------------------------------------------------------------
+STEP 11 — RUN THE APPLICATION
+----------------------------------------------------------------
+  Option A — Desktop App (recommended):
+    Open the folder:  desktop-app\release\
+    Double-click:     Metrolink FOMS.exe
+    (Keep WebView2Loader.dll in the same folder as the exe)
+
+  Option B — Browser:
+    Double-click:  launcher\Metrolink FOMS.exe
+    Then open:     http://localhost:8080/metrolink-frontend/
+
+----------------------------------------------------------------
+DEFAULT LOGIN CREDENTIALS
+----------------------------------------------------------------
+  Username:  admin
+  Password:  admin123
+
+  (Change the password after first login via Staff Accounts page)
+
+----------------------------------------------------------------
+NOTES
+----------------------------------------------------------------
+  - Microsoft Edge WebView2 is already installed on Windows 11
+    (it comes with Microsoft Edge). No extra install needed.
+
+  - config.properties contains your database password.
+    It is NOT uploaded to GitHub — keep it private.
+
+  - MySQL must be running before launching the app.
+    It usually starts automatically with Windows.
+
+  - If you see a "Windows protected your PC" warning when running
+    the exe, click "More info" then "Run anyway". This is normal
+    for self-compiled applications without a code signing cert.
+
+================================================================
+  GitHub Repository:
+  https://github.com/DistortedEijra/metrolink-backend
+================================================================
