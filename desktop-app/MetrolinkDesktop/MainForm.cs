@@ -22,9 +22,12 @@ public class MainForm : Form {
     Label    titleLabel   = new();
     Label    subLabel     = new();
 
+    bool _closing = false;
+
     public MainForm() {
         BuildUI();
-        this.Load += OnLoad;
+        this.Load    += OnLoad;
+        this.FormClosing += OnFormClosing;
     }
 
     void BuildUI() {
@@ -103,6 +106,24 @@ public class MainForm : Form {
         webView.Source  = new Uri(APP_URL);
         webView.Visible = true;
         loadingPanel.Visible = false;
+    }
+
+    // ── Auto-logout on close ──────────────────────────────
+    async void OnFormClosing(object? sender, FormClosingEventArgs e) {
+        if (_closing) return;
+
+        e.Cancel   = true;   // pause close until JS finishes
+        _closing   = true;
+
+        if (webView.CoreWebView2 != null) {
+            try {
+                // Clear JWT tokens — user must log in again next session
+                await webView.CoreWebView2.ExecuteScriptAsync(
+                    "localStorage.removeItem('ml_token'); localStorage.removeItem('ml_user');");
+            } catch { }
+        }
+
+        Close(); // re-trigger close now that cleanup is done
     }
 
     // ── Server startup ────────────────────────────────────
