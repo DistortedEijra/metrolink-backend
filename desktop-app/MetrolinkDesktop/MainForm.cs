@@ -243,10 +243,19 @@ public class MainForm : Form {
             var p = Process.Start(psi);
             p?.WaitForExit(6000);
         } catch { }
-        // Wait up to 8 seconds for port 8080 to free
-        for (int i = 0; i < 16; i++) {
-            if (!PortResponds()) return;
-            Thread.Sleep(500);
+        // Force-kill any remaining java.exe
+        try {
+            var kill = new ProcessStartInfo("taskkill") {
+                Arguments = "/F /IM java.exe /T",
+                UseShellExecute = false, CreateNoWindow = true
+            };
+            Process.Start(kill)?.WaitForExit(3000);
+        } catch { }
+        Thread.Sleep(2000);
+        // Delete extracted folder so Tomcat re-extracts cleanly from WAR
+        string extracted = Path.Combine(catalinaHome, "webapps", "metrolink-backend");
+        if (Directory.Exists(extracted)) {
+            try { Directory.Delete(extracted, true); } catch { }
         }
     }
 

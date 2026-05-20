@@ -210,10 +210,20 @@ class MetrolinkLauncher {
             var p = Process.Start(psi);
             p.WaitForExit(6000);
         } catch { }
-        // Wait for port 8080 to free up (max 8s)
-        for (int i = 0; i < 16; i++) {
-            if (!PortResponds()) { OK("Stopped"); return; }
-            Thread.Sleep(500);
+        // Force-kill any remaining java.exe
+        try {
+            var kill = new ProcessStartInfo("taskkill");
+            kill.Arguments = "/F /IM java.exe /T";
+            kill.UseShellExecute = false;
+            kill.CreateNoWindow = true;
+            var kp = Process.Start(kill);
+            if (kp != null) kp.WaitForExit(3000);
+        } catch { }
+        Thread.Sleep(2000);
+        // Delete corrupted extracted folder so Tomcat re-extracts cleanly
+        string extracted = Path.Combine(catalinaHome, "webapps", "metrolink-backend");
+        if (Directory.Exists(extracted)) {
+            try { Directory.Delete(extracted, true); } catch { }
         }
         OK("Done");
     }
