@@ -1,5 +1,7 @@
 package com.metrolink.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -9,6 +11,7 @@ public class Employee {
     private String        fullName;
     private String        position;       // DRIVER | CONDUCTOR
     private BigDecimal    dailyRate;
+    @JsonProperty("isActive")
     private boolean       isActive;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -30,6 +33,7 @@ public class Employee {
     public BigDecimal getDailyRate()          { return dailyRate; }
     public void setDailyRate(BigDecimal v)    { this.dailyRate = v; }
 
+    @JsonIgnore
     public boolean isActive()                 { return isActive; }
     public void setActive(boolean v)          { this.isActive = v; }
 
