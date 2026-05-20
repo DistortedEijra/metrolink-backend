@@ -15,6 +15,25 @@ STEP 1 — INSTALL JAVA JDK 21 OR HIGHER
   - Run the installer (check "Set JAVA_HOME variable" if asked)
   - Verify: Open Command Prompt, type:  java --version
 
+  IMPORTANT — Set JAVA_HOME after installing:
+  If you have multiple Java versions installed (e.g. Java 11 and
+  Java 21), Tomcat may pick the wrong one and show 404 errors.
+  Always set JAVA_HOME to point to JDK 21+:
+
+  a) Search Windows: "Edit the system environment variables"
+  b) Click "Environment Variables"
+  c) Under "User variables", click New:
+       Variable name:  JAVA_HOME
+       Variable value: C:\Program Files\Eclipse Adoptium\jdk-21.x.x
+  d) Click OK and restart any open terminals
+
+  ALSO create this file to force Tomcat to use the right Java:
+  File: <your-tomcat-folder>\bin\setenv.bat
+  Contents:
+    @echo off
+    set JAVA_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.x.x
+    set JRE_HOME=C:\Program Files\Eclipse Adoptium\jdk-21.x.x
+
 ----------------------------------------------------------------
 STEP 2 — INSTALL MYSQL 8.0
 ----------------------------------------------------------------
