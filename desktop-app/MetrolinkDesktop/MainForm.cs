@@ -243,13 +243,22 @@ public class MainForm : Form {
             var p = Process.Start(psi);
             p?.WaitForExit(6000);
         } catch { }
-        // Force-kill any remaining java.exe
+        // Kill only the java.exe that owns port 8080 (not VS Code or other Java tools)
         try {
-            var kill = new ProcessStartInfo("taskkill") {
-                Arguments = "/F /IM java.exe /T",
-                UseShellExecute = false, CreateNoWindow = true
+            var findPid = new ProcessStartInfo("cmd.exe") {
+                Arguments = "/c netstat -ano | findstr \":8080 \" | findstr \"LISTENING\"",
+                UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true
             };
-            Process.Start(kill)?.WaitForExit(3000);
+            var fp = Process.Start(findPid);
+            string line = fp?.StandardOutput.ReadToEnd() ?? "";
+            fp?.WaitForExit(3000);
+            string[] parts = line.Trim().Split([' ', '\t'], StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 0) {
+                Process.Start(new ProcessStartInfo("taskkill") {
+                    Arguments = $"/F /PID {parts[^1]}",
+                    UseShellExecute = false, CreateNoWindow = true
+                })?.WaitForExit(3000);
+            }
         } catch { }
         Thread.Sleep(2000);
         // Delete extracted folder so Tomcat re-extracts cleanly from WAR

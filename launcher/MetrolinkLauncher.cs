@@ -210,14 +210,27 @@ class MetrolinkLauncher {
             var p = Process.Start(psi);
             p.WaitForExit(6000);
         } catch { }
-        // Force-kill any remaining java.exe
+        // Kill only the java.exe that owns port 8080 (not VS Code or other Java tools)
         try {
-            var kill = new ProcessStartInfo("taskkill");
-            kill.Arguments = "/F /IM java.exe /T";
-            kill.UseShellExecute = false;
-            kill.CreateNoWindow = true;
-            var kp = Process.Start(kill);
-            if (kp != null) kp.WaitForExit(3000);
+            var findPid = new ProcessStartInfo("cmd.exe");
+            findPid.Arguments = "/c netstat -ano | findstr \":8080 \" | findstr \"LISTENING\"";
+            findPid.UseShellExecute = false;
+            findPid.CreateNoWindow = true;
+            findPid.RedirectStandardOutput = true;
+            var fp = Process.Start(findPid);
+            string line = fp.StandardOutput.ReadToEnd();
+            fp.WaitForExit(3000);
+            // Parse the PID from the last column
+            string[] parts = line.Trim().Split(new char[]{' ','\t'}, StringSplitOptions.RemoveEmptyEntries);
+            if (parts.Length > 0) {
+                string pid = parts[parts.Length - 1];
+                var kill = new ProcessStartInfo("taskkill");
+                kill.Arguments = "/F /PID " + pid;
+                kill.UseShellExecute = false;
+                kill.CreateNoWindow = true;
+                var kp = Process.Start(kill);
+                if (kp != null) kp.WaitForExit(3000);
+            }
         } catch { }
         Thread.Sleep(2000);
         // Delete corrupted extracted folder so Tomcat re-extracts cleanly
