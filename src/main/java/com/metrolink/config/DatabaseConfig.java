@@ -17,7 +17,24 @@ public class DatabaseConfig {
 
     private static HikariDataSource dataSource;
 
-    static {
+    private DatabaseConfig() {}
+
+    public static Connection getConnection() throws SQLException {
+        ensureDataSource();
+        return dataSource.getConnection();
+    }
+
+    public static void close() {
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+        }
+    }
+
+    private static synchronized void ensureDataSource() throws SQLException {
+        if (dataSource != null && !dataSource.isClosed()) {
+            return;
+        }
+
         try {
             Properties props = loadProperties();
             HikariConfig config = new HikariConfig();
@@ -33,19 +50,7 @@ public class DatabaseConfig {
             config.setPoolName("MetrolinkPool");
             dataSource = new HikariDataSource(config);
         } catch (Exception e) {
-            throw new RuntimeException("Failed to initialize database connection pool", e);
-        }
-    }
-
-    private DatabaseConfig() {}
-
-    public static Connection getConnection() throws SQLException {
-        return dataSource.getConnection();
-    }
-
-    public static void close() {
-        if (dataSource != null && !dataSource.isClosed()) {
-            dataSource.close();
+            throw new SQLException("Failed to initialize database connection pool: " + e.getMessage(), e);
         }
     }
 

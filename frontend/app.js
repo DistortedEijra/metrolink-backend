@@ -39,7 +39,19 @@ async function api(path, method = 'GET', body = null) {
 
   if (res.status === 401) { clearSession(); renderLogin(); throw new Error('Unauthorized'); }
 
-  const json = await res.json();
+  const contentType = res.headers.get('content-type') || '';
+  let json = null;
+  if (contentType.includes('application/json')) {
+    json = await res.json();
+  } else {
+    const text = await res.text();
+    const message = res.ok
+      ? 'Server returned an unexpected response.'
+      : `Server error ${res.status}. Check backend/database configuration.`;
+    toast(message, 'danger');
+    throw new Error(text || message);
+  }
+
   if (!json.success) {
     toast(json.message || 'An error occurred', 'danger');
     throw new Error(json.message);
