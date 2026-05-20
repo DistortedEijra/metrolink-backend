@@ -310,10 +310,31 @@ function getTripModal() {
                 </div>
               </div>
               <div class="col-md-4">
-                <label class="form-label">Bond Deduction</label>
+                <label class="form-label">Driver Income</label>
                 <div class="input-group">
                   <span class="input-group-text">₱</span>
-                  <input type="number" id="iBond" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
+                  <input type="number" id="iDriverIncome" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Conductor Income</label>
+                <div class="input-group">
+                  <span class="input-group-text">₱</span>
+                  <input type="number" id="iConductorIncome" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Driver Bond</label>
+                <div class="input-group">
+                  <span class="input-group-text">₱</span>
+                  <input type="number" id="iDriverBond" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
+                </div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Conductor Bond</label>
+                <div class="input-group">
+                  <span class="input-group-text">₱</span>
+                  <input type="number" id="iConductorBond" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
                 </div>
               </div>
               <div class="col-md-4">
@@ -360,6 +381,10 @@ function getTripModal() {
               <div class="col-md-4"><label class="form-label">Other Expenses</label>
                 <div class="input-group"><span class="input-group-text">₱</span>
                 <input type="number" id="eOther" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
+              <div class="col-md-8"><label class="form-label">Damage Remark</label>
+                <input type="text" id="eDamageRemark" class="form-control" placeholder="Describe the damage..."></div>
+              <div class="col-md-4"><label class="form-label">Employee Responsible</label>
+                <select id="eEmployeeId" class="form-select"><option value="">— None —</option></select></div>
               <div class="col-12">
                 <div class="net-display" style="background:#fff3e0;border-left-color:#ef6c00">
                   <div class="net-label" style="color:#bf360c">Total Expenses</div>
@@ -394,12 +419,14 @@ function openAddTrip() {
   tripTabIdx = 0; savedTripId = null; tripModalMode = 'add';
   document.getElementById('tripModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Add Trip';
   document.getElementById('tripId').value = '';
-  ['tDate','tDispatch','tArrival','tRemarks','iGross','iBond','iCommission',
-   'eDiesel','eWashing','eSalary','eOT','eNight','eBonus','eCash','eDamage','eOther'].forEach(id => {
+  ['tDate','tDispatch','tArrival','tRemarks','iGross','iDriverIncome','iConductorIncome',
+   'iDriverBond','iConductorBond','iCommission',
+   'eDiesel','eWashing','eSalary','eOT','eNight','eBonus','eCash','eDamage','eOther','eDamageRemark'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = el.type === 'number' ? (id === 'eSalary' ? '1225' : '0') : '';
   });
-  ['iBond','iCommission'].forEach(id => { const el = document.getElementById(id); if(el) el.value = '0'; });
+  const eEmpSel = document.getElementById('eEmployeeId');
+  if (eEmpSel) eEmpSel.value = '';
   document.getElementById('netDisplay').textContent = '₱0.00';
   document.getElementById('totalDisplay').textContent = '₱0.00';
   document.getElementById('tDate').value = new Date().toISOString().split('T')[0];
@@ -431,6 +458,11 @@ function populateTripDropdowns(busId, driverId, conductorId) {
     tripDrivers.map(d => `<option value="${d.id}" ${d.id == driverId ? 'selected' : ''}>${d.fullName}</option>`).join('');
   document.getElementById('tConductor').innerHTML =
     tripConductors.map(c => `<option value="${c.id}" ${c.id == conductorId ? 'selected' : ''}>${c.fullName}</option>`).join('');
+  // Populate employee responsible dropdown for damages
+  const allEmps = [...tripDrivers, ...tripConductors].sort((a,b) => a.fullName.localeCompare(b.fullName));
+  const empSel = document.getElementById('eEmployeeId');
+  if (empSel) empSel.innerHTML = '<option value="">— None —</option>' +
+    allEmps.map(e => `<option value="${e.id}">${e.fullName} (${e.position})</option>`).join('');
 }
 
 function switchTabTo(idx) {
@@ -493,9 +525,12 @@ async function saveTripAll() {
   try {
     // Save income
     await api(`/trips/${savedTripId}/income`, 'POST', {
-      grossIncome:   +document.getElementById('iGross').value || 0,
-      bondDeduction: +document.getElementById('iBond').value || 0,
-      commission:    +document.getElementById('iCommission').value || 0
+      grossIncome:     +document.getElementById('iGross').value || 0,
+      driverIncome:    +document.getElementById('iDriverIncome').value || 0,
+      conductorIncome: +document.getElementById('iConductorIncome').value || 0,
+      driverBond:      +document.getElementById('iDriverBond').value || 0,
+      conductorBond:   +document.getElementById('iConductorBond').value || 0,
+      commission:      +document.getElementById('iCommission').value || 0
     });
     // Save expenses
     await api(`/trips/${savedTripId}/expenses`, 'POST', {
@@ -507,6 +542,8 @@ async function saveTripAll() {
       bonus:         +document.getElementById('eBonus').value || 0,
       cashAdvance:   +document.getElementById('eCash').value || 0,
       damages:       +document.getElementById('eDamage').value || 0,
+      damageRemark:  document.getElementById('eDamageRemark').value || null,
+      employeeId:    document.getElementById('eEmployeeId').value ? +document.getElementById('eEmployeeId').value : null,
       otherExpenses: +document.getElementById('eOther').value || 0
     });
     toast('Trip saved successfully!');
@@ -516,10 +553,11 @@ async function saveTripAll() {
 }
 
 function calcNet() {
-  const g = +document.getElementById('iGross').value || 0;
-  const b = +document.getElementById('iBond').value || 0;
-  const c = +document.getElementById('iCommission').value || 0;
-  document.getElementById('netDisplay').textContent = peso(g - b - c);
+  const g  = +document.getElementById('iGross').value || 0;
+  const db = +document.getElementById('iDriverBond').value || 0;
+  const cb = +document.getElementById('iConductorBond').value || 0;
+  const c  = +document.getElementById('iCommission').value || 0;
+  document.getElementById('netDisplay').textContent = peso(g - db - cb - c);
 }
 
 function calcTotal() {
@@ -568,6 +606,10 @@ async function openIncomeExp(tripId, busNum, tripDate) {
 
   const v = (obj, key, def = 0) => obj?.[key] ?? def;
 
+  // Build employee dropdown for damages
+  const allEmps2 = [...(tripDrivers||[]),...(tripConductors||[])].sort((a,b)=>a.fullName.localeCompare(b.fullName));
+  const empOpts = '<option value="">— None —</option>' + allEmps2.map(e=>`<option value="${e.id}" ${e.id==v(exp,'employeeId')?'selected':''}>${e.fullName}</option>`).join('');
+
   document.getElementById('ieBody').innerHTML = `
     <div class="row g-3">
       <div class="col-md-6">
@@ -575,9 +617,18 @@ async function openIncomeExp(tripId, busNum, tripDate) {
         <div class="mb-2"><label class="form-label">Gross Income</label>
           <div class="input-group"><span class="input-group-text">₱</span>
           <input type="number" id="ie_gross" class="form-control" value="${v(inc,'grossIncome')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
-        <div class="mb-2"><label class="form-label">Bond Deduction</label>
+        <div class="mb-2"><label class="form-label">Driver Income</label>
           <div class="input-group"><span class="input-group-text">₱</span>
-          <input type="number" id="ie_bond" class="form-control" value="${v(inc,'bondDeduction')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
+          <input type="number" id="ie_dinc" class="form-control" value="${v(inc,'driverIncome')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
+        <div class="mb-2"><label class="form-label">Conductor Income</label>
+          <div class="input-group"><span class="input-group-text">₱</span>
+          <input type="number" id="ie_cinc" class="form-control" value="${v(inc,'conductorIncome')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
+        <div class="mb-2"><label class="form-label">Driver Bond</label>
+          <div class="input-group"><span class="input-group-text">₱</span>
+          <input type="number" id="ie_dbond" class="form-control" value="${v(inc,'driverBond')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
+        <div class="mb-2"><label class="form-label">Conductor Bond</label>
+          <div class="input-group"><span class="input-group-text">₱</span>
+          <input type="number" id="ie_cbond" class="form-control" value="${v(inc,'conductorBond')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
         <div class="mb-2"><label class="form-label">Commission</label>
           <div class="input-group"><span class="input-group-text">₱</span>
           <input type="number" id="ie_comm" class="form-control" value="${v(inc,'commission')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
@@ -600,6 +651,14 @@ async function openIncomeExp(tripId, busNum, tripDate) {
               <input type="number" id="${id}" class="form-control" value="${val}" min="0" step="0.01" oninput="ieCalcTotal()">
             </div></div>
           </div>`).join('')}
+        <div class="mb-1 row g-1 align-items-center">
+          <div class="col-4"><label class="form-label mb-0" style="font-size:0.78rem">Damage Remark</label></div>
+          <div class="col-8"><input type="text" id="ie_dremark" class="form-control form-control-sm" value="${v(exp,'damageRemark')||''}"></div>
+        </div>
+        <div class="mb-1 row g-1 align-items-center">
+          <div class="col-4"><label class="form-label mb-0" style="font-size:0.78rem">Employee Responsible</label></div>
+          <div class="col-8"><select id="ie_empid" class="form-select form-select-sm">${empOpts}</select></div>
+        </div>
         <div class="net-display mt-2" style="background:#fff3e0;border-left-color:#ef6c00">
           <div class="net-label" style="color:#bf360c">Total Expenses</div>
           <div class="net-value" style="color:#e65100" id="ie_total">${peso(v(exp,'totalExpenses'))}</div>
@@ -609,10 +668,11 @@ async function openIncomeExp(tripId, busNum, tripDate) {
 }
 
 function ieCalcNet() {
-  const g = +document.getElementById('ie_gross').value || 0;
-  const b = +document.getElementById('ie_bond').value || 0;
-  const c = +document.getElementById('ie_comm').value || 0;
-  document.getElementById('ie_net').textContent = peso(g - b - c);
+  const g  = +document.getElementById('ie_gross').value || 0;
+  const db = +document.getElementById('ie_dbond').value || 0;
+  const cb = +document.getElementById('ie_cbond').value || 0;
+  const c  = +document.getElementById('ie_comm').value || 0;
+  document.getElementById('ie_net').textContent = peso(g - db - cb - c);
 }
 
 function ieCalcTotal() {
@@ -624,10 +684,14 @@ function ieCalcTotal() {
 async function saveIncomeExp() {
   try {
     await api(`/trips/${ieCurrentTripId}/income`, 'POST', {
-      grossIncome:   +document.getElementById('ie_gross').value||0,
-      bondDeduction: +document.getElementById('ie_bond').value||0,
-      commission:    +document.getElementById('ie_comm').value||0
+      grossIncome:     +document.getElementById('ie_gross').value||0,
+      driverIncome:    +document.getElementById('ie_dinc').value||0,
+      conductorIncome: +document.getElementById('ie_cinc').value||0,
+      driverBond:      +document.getElementById('ie_dbond').value||0,
+      conductorBond:   +document.getElementById('ie_cbond').value||0,
+      commission:      +document.getElementById('ie_comm').value||0
     });
+    const empIdVal = document.getElementById('ie_empid').value;
     await api(`/trips/${ieCurrentTripId}/expenses`, 'POST', {
       diesel:        +document.getElementById('ie_diesel').value||0,
       washing:       +document.getElementById('ie_wash').value||0,
@@ -637,6 +701,8 @@ async function saveIncomeExp() {
       bonus:         +document.getElementById('ie_bonus').value||0,
       cashAdvance:   +document.getElementById('ie_ca').value||0,
       damages:       +document.getElementById('ie_dmg').value||0,
+      damageRemark:  document.getElementById('ie_dremark').value||null,
+      employeeId:    empIdVal ? +empIdVal : null,
       otherExpenses: +document.getElementById('ie_other').value||0
     });
     toast('Income & Expenses saved!');
@@ -666,7 +732,7 @@ async function renderEmployees() {
       </div>
       <div class="table-responsive">
         <table class="table table-hover mb-0">
-          <thead><tr><th>Code</th><th>Name</th><th>Position</th><th>Daily Rate</th><th>Status</th>
+          <thead><tr><th>Code</th><th>Name</th><th>Birthdate</th><th>Address</th><th>Position</th><th>Daily Rate</th><th>Status</th>
             ${isAdmin() ? '<th>Actions</th>' : ''}</tr></thead>
           <tbody id="empBody"><tr><td colspan="6" class="table-empty">
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
@@ -686,13 +752,15 @@ function renderEmployeeRows(rows) {
   const tbody = document.getElementById('empBody');
   if (!tbody) return;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="6" class="table-empty"><i class="fas fa-users"></i>No employees found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="table-empty"><i class="fas fa-users"></i>No employees found</td></tr>`;
     return;
   }
   tbody.innerHTML = rows.map(e => `
     <tr>
       <td><code>${e.employeeCode}</code></td>
       <td><strong>${e.fullName}</strong></td>
+      <td>${e.birthdate || '—'}</td>
+      <td>${dash(e.address)}</td>
       <td><span class="status-badge ${e.position === 'DRIVER' ? 'status-driver' : 'status-conductor'}">${e.position}</span></td>
       <td>${peso(e.dailyRate)}</td>
       <td><span class="status-badge ${e.isActive ? 'status-active' : 'status-inactive'}">${e.isActive ? 'Active' : 'Inactive'}</span></td>
@@ -718,7 +786,7 @@ function filterEmployeeRows(q) {
 function getEmployeeModal() {
   return `
   <div class="modal fade" id="empModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="empModalTitle">Add Operator</h5>
@@ -743,8 +811,16 @@ function getEmployeeModal() {
               <input type="text" id="empName" class="form-control" placeholder="Last Name, First Name">
             </div>
             <div class="col-md-6">
+              <label class="form-label">Birthdate</label>
+              <input type="date" id="empBirthdate" class="form-control">
+            </div>
+            <div class="col-md-6">
               <label class="form-label">Daily Rate (₱)</label>
               <input type="number" id="empRate" class="form-control" value="1225" min="0" step="0.01">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Address</label>
+              <input type="text" id="empAddress" class="form-control" placeholder="Street, City">
             </div>
           </div>
         </div>
@@ -760,7 +836,7 @@ function getEmployeeModal() {
 function openAddEmployee() {
   document.getElementById('empModalTitle').textContent = 'Add Operator';
   document.getElementById('empId').value = '';
-  ['empCode','empName'].forEach(id => document.getElementById(id).value = '');
+  ['empCode','empName','empBirthdate','empAddress'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('empRate').value = '1225';
   document.getElementById('empPos').value = 'DRIVER';
   new bootstrap.Modal(document.getElementById('empModal')).show();
@@ -773,6 +849,8 @@ async function openEditEmployee(id) {
   document.getElementById('empId').value = id;
   document.getElementById('empCode').value = emp.employeeCode;
   document.getElementById('empName').value = emp.fullName;
+  document.getElementById('empBirthdate').value = emp.birthdate || '';
+  document.getElementById('empAddress').value = emp.address || '';
   document.getElementById('empPos').value = emp.position;
   document.getElementById('empRate').value = emp.dailyRate;
   new bootstrap.Modal(document.getElementById('empModal')).show();
@@ -783,6 +861,8 @@ async function saveEmployee() {
   const body = {
     employeeCode: document.getElementById('empCode').value.trim(),
     fullName:     document.getElementById('empName').value.trim(),
+    birthdate:    document.getElementById('empBirthdate').value || null,
+    address:      document.getElementById('empAddress').value.trim() || null,
     position:     document.getElementById('empPos').value,
     dailyRate:    +document.getElementById('empRate').value
   };
@@ -1106,7 +1186,7 @@ function renderUserRows(rows) {
 function getUserModal() {
   return `
   <div class="modal fade" id="userModal" tabindex="-1">
-    <div class="modal-dialog">
+    <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="userModalTitle">Register Staff</h5>
@@ -1126,13 +1206,25 @@ function getUserModal() {
                 <option value="ADMIN">Admin</option>
               </select>
             </div>
-            <div class="col-12">
+            <div class="col-md-8">
               <label class="form-label">Full Name *</label>
               <input type="text" id="uFullName" class="form-control" placeholder="Last Name, First Name">
             </div>
-            <div class="col-12" id="uPassRow">
+            <div class="col-md-4">
+              <label class="form-label">Birthdate</label>
+              <input type="date" id="uBirthdate" class="form-control">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Email</label>
+              <input type="email" id="uEmail" class="form-control" placeholder="email@example.com">
+            </div>
+            <div class="col-md-6" id="uPassRow">
               <label class="form-label">Password *</label>
               <input type="password" id="uPassword" class="form-control" placeholder="Set initial password">
+            </div>
+            <div class="col-12">
+              <label class="form-label">Address</label>
+              <input type="text" id="uAddress" class="form-control" placeholder="Street, City">
             </div>
           </div>
         </div>
@@ -1169,7 +1261,7 @@ function openAddUser() {
   document.getElementById('userModalTitle').textContent = 'Register Staff';
   document.getElementById('userId').value = '';
   document.getElementById('uPassRow').style.display = '';
-  ['uUsername','uFullName','uPassword'].forEach(id => document.getElementById(id).value = '');
+  ['uUsername','uFullName','uPassword','uBirthdate','uEmail','uAddress'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('uRole').value = 'STAFF';
   document.getElementById('uUsername').disabled = false;
   new bootstrap.Modal(document.getElementById('userModal')).show();
@@ -1183,6 +1275,9 @@ function openEditUser(id) {
   document.getElementById('uUsername').value = u.username;
   document.getElementById('uUsername').disabled = true;
   document.getElementById('uFullName').value = u.fullName;
+  document.getElementById('uBirthdate').value = u.birthdate || '';
+  document.getElementById('uEmail').value = u.email || '';
+  document.getElementById('uAddress').value = u.address || '';
   document.getElementById('uRole').value = u.role;
   document.getElementById('uPassRow').style.display = 'none';
   new bootstrap.Modal(document.getElementById('userModal')).show();
@@ -1193,16 +1288,22 @@ async function saveUser() {
   try {
     if (id) {
       await api(`/users/${id}`, 'PUT', {
-        fullName: document.getElementById('uFullName').value.trim(),
-        role:     document.getElementById('uRole').value
+        fullName:  document.getElementById('uFullName').value.trim(),
+        birthdate: document.getElementById('uBirthdate').value || null,
+        address:   document.getElementById('uAddress').value.trim() || null,
+        email:     document.getElementById('uEmail').value.trim() || null,
+        role:      document.getElementById('uRole').value
       });
       toast('User updated');
     } else {
       await api('/users', 'POST', {
-        username: document.getElementById('uUsername').value.trim(),
-        password: document.getElementById('uPassword').value,
-        fullName: document.getElementById('uFullName').value.trim(),
-        role:     document.getElementById('uRole').value
+        username:  document.getElementById('uUsername').value.trim(),
+        password:  document.getElementById('uPassword').value,
+        fullName:  document.getElementById('uFullName').value.trim(),
+        birthdate: document.getElementById('uBirthdate').value || null,
+        address:   document.getElementById('uAddress').value.trim() || null,
+        email:     document.getElementById('uEmail').value.trim() || null,
+        role:      document.getElementById('uRole').value
       });
       toast('Staff registered');
     }

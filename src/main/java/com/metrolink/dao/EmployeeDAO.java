@@ -5,12 +5,10 @@ import com.metrolink.model.Employee;
 
 import java.math.BigDecimal;
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 
-// ============================================================
-// EmployeeDAO
-// ============================================================
 public class EmployeeDAO {
 
     public List<Employee> findAll() throws SQLException {
@@ -47,14 +45,18 @@ public class EmployeeDAO {
         return null;
     }
 
-    public Employee create(String employeeCode, String fullName, String position, BigDecimal dailyRate) throws SQLException {
-        String sql = "INSERT INTO employees (employee_code, full_name, position, daily_rate) VALUES (?, ?, ?, ?)";
+    public Employee create(String employeeCode, String fullName, LocalDate birthdate,
+                           String address, String position, BigDecimal dailyRate) throws SQLException {
+        String sql = "INSERT INTO employees (employee_code, full_name, birthdate, address, position, daily_rate) " +
+                     "VALUES (?, ?, ?, ?, ?, ?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, employeeCode);
             ps.setString(2, fullName);
-            ps.setString(3, position);
-            ps.setBigDecimal(4, dailyRate);
+            ps.setObject(3, birthdate);
+            ps.setString(4, address);
+            ps.setString(5, position);
+            ps.setBigDecimal(6, dailyRate);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) return findById(keys.getInt(1));
@@ -63,14 +65,17 @@ public class EmployeeDAO {
         return null;
     }
 
-    public boolean update(int id, String fullName, String position, BigDecimal dailyRate) throws SQLException {
-        String sql = "UPDATE employees SET full_name=?, position=?, daily_rate=? WHERE id=?";
+    public boolean update(int id, String fullName, LocalDate birthdate,
+                          String address, String position, BigDecimal dailyRate) throws SQLException {
+        String sql = "UPDATE employees SET full_name=?, birthdate=?, address=?, position=?, daily_rate=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, fullName);
-            ps.setString(2, position);
-            ps.setBigDecimal(3, dailyRate);
-            ps.setInt(4, id);
+            ps.setObject(2, birthdate);
+            ps.setString(3, address);
+            ps.setString(4, position);
+            ps.setBigDecimal(5, dailyRate);
+            ps.setInt(6, id);
             return ps.executeUpdate() > 0;
         }
     }
@@ -90,6 +95,9 @@ public class EmployeeDAO {
         e.setId(rs.getInt("id"));
         e.setEmployeeCode(rs.getString("employee_code"));
         e.setFullName(rs.getString("full_name"));
+        Date bd = rs.getDate("birthdate");
+        if (bd != null) e.setBirthdate(bd.toLocalDate());
+        e.setAddress(rs.getString("address"));
         e.setPosition(rs.getString("position"));
         e.setDailyRate(rs.getBigDecimal("daily_rate"));
         e.setActive(rs.getBoolean("is_active"));

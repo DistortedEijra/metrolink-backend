@@ -9,6 +9,7 @@ import jakarta.servlet.http.*;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.io.IOException;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -62,10 +63,14 @@ public class UserServlet extends HttpServlet {
         try {
             requireAdmin(req, res);
             Map<String, Object> body = ResponseUtil.parseBody(req);
-            String username = (String) body.get("username");
-            String password = (String) body.get("password");
-            String fullName = (String) body.get("fullName");
-            String role     = (String) body.getOrDefault("role", "STAFF");
+            String username     = (String) body.get("username");
+            String password     = (String) body.get("password");
+            String fullName     = (String) body.get("fullName");
+            String birthdateStr = (String) body.get("birthdate");
+            String address      = (String) body.get("address");
+            String email        = (String) body.get("email");
+            String role         = (String) body.getOrDefault("role", "STAFF");
+            LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
 
             if (username == null || password == null || fullName == null) {
                 ResponseUtil.error(res, 400, "username, password, fullName are required"); return;
@@ -75,7 +80,7 @@ public class UserServlet extends HttpServlet {
             }
 
             String hashed = BCrypt.hashpw(password, BCrypt.gensalt(12));
-            User created = userDAO.create(username, hashed, fullName, role);
+            User created = userDAO.create(username, hashed, fullName, birthdate, address, email, role);
             ResponseUtil.created(res, safeUser(created));
 
         } catch (SecurityException e) {
@@ -96,9 +101,13 @@ public class UserServlet extends HttpServlet {
             requireAdmin(req, res);
             int id = parseId(req.getPathInfo());
             Map<String, Object> body = ResponseUtil.parseBody(req);
-            String fullName = (String) body.get("fullName");
-            String role     = (String) body.get("role");
-            userDAO.update(id, fullName, role);
+            String fullName     = (String) body.get("fullName");
+            String birthdateStr = (String) body.get("birthdate");
+            String address      = (String) body.get("address");
+            String email        = (String) body.get("email");
+            String role         = (String) body.get("role");
+            LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
+            userDAO.update(id, fullName, birthdate, address, email, role);
             ResponseUtil.success(res, Map.of("updated", true));
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -159,6 +168,9 @@ public class UserServlet extends HttpServlet {
         m.put("id",        u.getId());
         m.put("username",  u.getUsername());
         m.put("fullName",  u.getFullName());
+        m.put("birthdate", u.getBirthdate());
+        m.put("address",   u.getAddress());
+        m.put("email",     u.getEmail());
         m.put("role",      u.getRole());
         m.put("isActive",  u.isActive());
         m.put("createdAt", u.getCreatedAt());

@@ -9,6 +9,7 @@ import jakarta.servlet.http.*;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -56,8 +57,11 @@ public class EmployeeServlet extends HttpServlet {
             Map<String, Object> body = ResponseUtil.parseBody(req);
             String employeeCode = (String) body.get("employeeCode");
             String fullName     = (String) body.get("fullName");
+            String birthdateStr = (String) body.get("birthdate");
+            String address      = (String) body.get("address");
             String position     = (String) body.get("position");
             BigDecimal dailyRate = new BigDecimal(body.getOrDefault("dailyRate", 1225.00).toString());
+            LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
 
             if (employeeCode == null || fullName == null || position == null) {
                 ResponseUtil.error(res, 400, "employeeCode, fullName, position are required"); return;
@@ -65,7 +69,7 @@ public class EmployeeServlet extends HttpServlet {
             if (!Set.of("DRIVER", "CONDUCTOR").contains(position)) {
                 ResponseUtil.error(res, 400, "position must be DRIVER or CONDUCTOR"); return;
             }
-            Employee created = dao.create(employeeCode, fullName, position, dailyRate);
+            Employee created = dao.create(employeeCode, fullName, birthdate, address, position, dailyRate);
             ResponseUtil.created(res, created);
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -80,10 +84,13 @@ public class EmployeeServlet extends HttpServlet {
             requireAdmin(req);
             int id = parseId(req.getPathInfo());
             Map<String, Object> body = ResponseUtil.parseBody(req);
-            String fullName  = (String) body.get("fullName");
-            String position  = (String) body.get("position");
-            BigDecimal rate  = new BigDecimal(body.getOrDefault("dailyRate", 1225.00).toString());
-            dao.update(id, fullName, position, rate);
+            String fullName     = (String) body.get("fullName");
+            String birthdateStr = (String) body.get("birthdate");
+            String address      = (String) body.get("address");
+            String position     = (String) body.get("position");
+            BigDecimal rate     = new BigDecimal(body.getOrDefault("dailyRate", 1225.00).toString());
+            LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
+            dao.update(id, fullName, birthdate, address, position, rate);
             ResponseUtil.success(res, Map.of("updated", true));
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());

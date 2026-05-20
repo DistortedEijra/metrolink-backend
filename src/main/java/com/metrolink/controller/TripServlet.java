@@ -97,9 +97,12 @@ public class TripServlet extends HttpServlet {
                 Map<String, Object> body = ResponseUtil.parseBody(req);
                 var saved = incomeDAO.save(
                     tripId,
-                    new java.math.BigDecimal(body.getOrDefault("grossIncome", 0).toString()),
-                    new java.math.BigDecimal(body.getOrDefault("bondDeduction", 0).toString()),
-                    new java.math.BigDecimal(body.getOrDefault("commission", 0).toString())
+                    bd(body, "grossIncome"),
+                    bd(body, "driverIncome"),
+                    bd(body, "conductorIncome"),
+                    bd(body, "driverBond"),
+                    bd(body, "conductorBond"),
+                    bd(body, "commission")
                 );
                 ResponseUtil.created(res, saved);
                 return;
@@ -109,12 +112,16 @@ public class TripServlet extends HttpServlet {
             if (pathInfo != null && pathInfo.matches("/\\d+/expenses")) {
                 int tripId = Integer.parseInt(pathInfo.split("/")[1]);
                 Map<String, Object> body = ResponseUtil.parseBody(req);
+                String  damageRemark = (String) body.get("damageRemark");
+                Integer employeeId   = body.get("employeeId") != null
+                    ? ((Number) body.get("employeeId")).intValue() : null;
                 var saved = expensesDAO.save(
                     tripId,
-                    bd(body, "diesel"),      bd(body, "washing"),
-                    bd(body, "driverSalary"),bd(body, "overtime"),
-                    bd(body, "nightDiff"),   bd(body, "bonus"),
-                    bd(body, "cashAdvance"), bd(body, "damages"),
+                    bd(body, "diesel"),       bd(body, "washing"),
+                    bd(body, "driverSalary"), bd(body, "overtime"),
+                    bd(body, "nightDiff"),    bd(body, "bonus"),
+                    bd(body, "cashAdvance"),  bd(body, "damages"),
+                    damageRemark, employeeId,
                     bd(body, "otherExpenses")
                 );
                 ResponseUtil.created(res, saved);

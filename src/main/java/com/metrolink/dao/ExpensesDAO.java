@@ -25,17 +25,20 @@ public class ExpensesDAO {
                                     BigDecimal driverSalary, BigDecimal overtime,
                                     BigDecimal nightDiff, BigDecimal bonus,
                                     BigDecimal cashAdvance, BigDecimal damages,
+                                    String damageRemark, Integer employeeId,
                                     BigDecimal otherExpenses) throws SQLException {
-        String sql = "INSERT INTO expenses " +
-                     "(trip_id, diesel, washing, driver_salary, overtime, night_diff, " +
-                     "bonus, cash_advance, damages, other_expenses) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
-                     "ON DUPLICATE KEY UPDATE " +
-                     "diesel=VALUES(diesel), washing=VALUES(washing), " +
-                     "driver_salary=VALUES(driver_salary), overtime=VALUES(overtime), " +
-                     "night_diff=VALUES(night_diff), bonus=VALUES(bonus), " +
-                     "cash_advance=VALUES(cash_advance), damages=VALUES(damages), " +
-                     "other_expenses=VALUES(other_expenses)";
+        String sql =
+            "INSERT INTO expenses " +
+            "(trip_id, diesel, washing, driver_salary, overtime, night_diff, " +
+            "bonus, cash_advance, damages, damage_remark, employee_id, other_expenses) " +
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) " +
+            "ON DUPLICATE KEY UPDATE " +
+            "diesel=VALUES(diesel), washing=VALUES(washing), " +
+            "driver_salary=VALUES(driver_salary), overtime=VALUES(overtime), " +
+            "night_diff=VALUES(night_diff), bonus=VALUES(bonus), " +
+            "cash_advance=VALUES(cash_advance), damages=VALUES(damages), " +
+            "damage_remark=VALUES(damage_remark), employee_id=VALUES(employee_id), " +
+            "other_expenses=VALUES(other_expenses)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setInt(1, tripId);
@@ -47,7 +50,10 @@ public class ExpensesDAO {
             ps.setBigDecimal(7, bonus);
             ps.setBigDecimal(8, cashAdvance);
             ps.setBigDecimal(9, damages);
-            ps.setBigDecimal(10, otherExpenses);
+            ps.setString(10, damageRemark);
+            if (employeeId != null) ps.setInt(11, employeeId);
+            else ps.setNull(11, Types.INTEGER);
+            ps.setBigDecimal(12, otherExpenses);
             ps.executeUpdate();
         }
         return findByTripId(tripId);
@@ -65,6 +71,9 @@ public class ExpensesDAO {
         m.put("bonus",          rs.getBigDecimal("bonus"));
         m.put("cashAdvance",    rs.getBigDecimal("cash_advance"));
         m.put("damages",        rs.getBigDecimal("damages"));
+        m.put("damageRemark",   rs.getString("damage_remark"));
+        int eid = rs.getInt("employee_id");
+        m.put("employeeId",     rs.wasNull() ? null : eid);
         m.put("otherExpenses",  rs.getBigDecimal("other_expenses"));
         m.put("totalExpenses",  rs.getBigDecimal("total_expenses"));
         m.put("createdAt",      rs.getTimestamp("created_at"));

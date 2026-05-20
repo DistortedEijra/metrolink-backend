@@ -106,7 +106,10 @@ class Income {
     private int        id;
     private int        tripId;
     private BigDecimal grossIncome;
-    private BigDecimal bondDeduction;
+    private BigDecimal driverIncome;
+    private BigDecimal conductorIncome;
+    private BigDecimal driverBond;
+    private BigDecimal conductorBond;
     private BigDecimal commission;
     private BigDecimal netIncome;      // computed by DB
     private LocalDateTime createdAt;
@@ -114,22 +117,28 @@ class Income {
 
     public Income() {}
 
-    public int getId()                         { return id; }
-    public void setId(int id)                  { this.id = id; }
-    public int getTripId()                     { return tripId; }
-    public void setTripId(int v)               { this.tripId = v; }
-    public BigDecimal getGrossIncome()         { return grossIncome; }
-    public void setGrossIncome(BigDecimal v)   { this.grossIncome = v; }
-    public BigDecimal getBondDeduction()       { return bondDeduction; }
-    public void setBondDeduction(BigDecimal v) { this.bondDeduction = v; }
-    public BigDecimal getCommission()          { return commission; }
-    public void setCommission(BigDecimal v)    { this.commission = v; }
-    public BigDecimal getNetIncome()           { return netIncome; }
-    public void setNetIncome(BigDecimal v)     { this.netIncome = v; }
-    public LocalDateTime getCreatedAt()        { return createdAt; }
-    public void setCreatedAt(LocalDateTime v)  { this.createdAt = v; }
-    public LocalDateTime getUpdatedAt()        { return updatedAt; }
-    public void setUpdatedAt(LocalDateTime v)  { this.updatedAt = v; }
+    public int getId()                              { return id; }
+    public void setId(int id)                       { this.id = id; }
+    public int getTripId()                          { return tripId; }
+    public void setTripId(int v)                    { this.tripId = v; }
+    public BigDecimal getGrossIncome()              { return grossIncome; }
+    public void setGrossIncome(BigDecimal v)        { this.grossIncome = v; }
+    public BigDecimal getDriverIncome()             { return driverIncome; }
+    public void setDriverIncome(BigDecimal v)       { this.driverIncome = v; }
+    public BigDecimal getConductorIncome()          { return conductorIncome; }
+    public void setConductorIncome(BigDecimal v)    { this.conductorIncome = v; }
+    public BigDecimal getDriverBond()               { return driverBond; }
+    public void setDriverBond(BigDecimal v)         { this.driverBond = v; }
+    public BigDecimal getConductorBond()            { return conductorBond; }
+    public void setConductorBond(BigDecimal v)      { this.conductorBond = v; }
+    public BigDecimal getCommission()               { return commission; }
+    public void setCommission(BigDecimal v)         { this.commission = v; }
+    public BigDecimal getNetIncome()                { return netIncome; }
+    public void setNetIncome(BigDecimal v)          { this.netIncome = v; }
+    public LocalDateTime getCreatedAt()             { return createdAt; }
+    public void setCreatedAt(LocalDateTime v)       { this.createdAt = v; }
+    public LocalDateTime getUpdatedAt()             { return updatedAt; }
+    public void setUpdatedAt(LocalDateTime v)       { this.updatedAt = v; }
 }
 
 // ============================================================
@@ -146,8 +155,10 @@ class Expenses {
     private BigDecimal bonus;
     private BigDecimal cashAdvance;
     private BigDecimal damages;
+    private String     damageRemark;
+    private Integer    employeeId;     // employee responsible for damage
     private BigDecimal otherExpenses;
-    private BigDecimal totalExpenses;   // computed by DB
+    private BigDecimal totalExpenses;  // computed by DB
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
 
@@ -173,6 +184,10 @@ class Expenses {
     public void setCashAdvance(BigDecimal v)     { this.cashAdvance = v; }
     public BigDecimal getDamages()               { return damages; }
     public void setDamages(BigDecimal v)         { this.damages = v; }
+    public String getDamageRemark()              { return damageRemark; }
+    public void setDamageRemark(String v)        { this.damageRemark = v; }
+    public Integer getEmployeeId()               { return employeeId; }
+    public void setEmployeeId(Integer v)         { this.employeeId = v; }
     public BigDecimal getOtherExpenses()         { return otherExpenses; }
     public void setOtherExpenses(BigDecimal v)   { this.otherExpenses = v; }
     public BigDecimal getTotalExpenses()         { return totalExpenses; }

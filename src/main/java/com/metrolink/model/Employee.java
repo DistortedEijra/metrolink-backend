@@ -3,12 +3,15 @@ package com.metrolink.model;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 public class Employee {
     private int           id;
     private String        employeeCode;
     private String        fullName;
+    private LocalDate     birthdate;
+    private String        address;
     private String        position;       // DRIVER | CONDUCTOR
     private BigDecimal    dailyRate;
     @JsonProperty("isActive")
@@ -26,6 +29,12 @@ public class Employee {
 
     public String getFullName()               { return fullName; }
     public void setFullName(String v)         { this.fullName = v; }
+
+    public LocalDate getBirthdate()           { return birthdate; }
+    public void setBirthdate(LocalDate v)     { this.birthdate = v; }
+
+    public String getAddress()                { return address; }
+    public void setAddress(String v)          { this.address = v; }
 
     public String getPosition()               { return position; }
     public void setPosition(String v)         { this.position = v; }
