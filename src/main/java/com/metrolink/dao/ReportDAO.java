@@ -6,22 +6,14 @@ import java.sql.*;
 import java.time.LocalDate;
 import java.util.*;
 
-/**
- * ReportDAO — implements Hash-Aggregation queries as specified in the system doc.
- * Groups trip records by key identifiers and performs summation/averaging
- * to produce consolidated financial summaries.
- */
 public class ReportDAO {
 
-    /**
-     * Full trip report for a date range:
-     * aggregates income, expenses, and net per trip.
-     */
     public List<Map<String, Object>> getTripReport(LocalDate from, LocalDate to) throws SQLException {
         String sql =
             "SELECT t.id AS trip_id, t.trip_date, t.trip_count, t.is_modified, " +
             "b.bus_number, d.full_name AS driver_name, co.full_name AS conductor_name, " +
-            "i.gross_income, i.bond_deduction, i.commission, i.net_income, " +
+            "i.gross_income, i.driver_income, i.conductor_income, " +
+            "i.driver_bond, i.conductor_bond, i.commission, i.net_income, " +
             "e.total_expenses, " +
             "(i.net_income - e.total_expenses) AS net_profit " +
             "FROM trips t " +
@@ -41,19 +33,22 @@ public class ReportDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("tripId",        rs.getInt("trip_id"));
-                    row.put("tripDate",      rs.getDate("trip_date") != null ? rs.getDate("trip_date").toLocalDate() : null);
-                    row.put("tripCount",     rs.getInt("trip_count"));
-                    row.put("isModified",    rs.getBoolean("is_modified"));
-                    row.put("busNumber",     rs.getString("bus_number"));
-                    row.put("driverName",    rs.getString("driver_name"));
-                    row.put("conductorName", rs.getString("conductor_name"));
-                    row.put("grossIncome",   rs.getBigDecimal("gross_income"));
-                    row.put("bondDeduction", rs.getBigDecimal("bond_deduction"));
-                    row.put("commission",    rs.getBigDecimal("commission"));
-                    row.put("netIncome",     rs.getBigDecimal("net_income"));
-                    row.put("totalExpenses", rs.getBigDecimal("total_expenses"));
-                    row.put("netProfit",     rs.getBigDecimal("net_profit"));
+                    row.put("tripId",          rs.getInt("trip_id"));
+                    row.put("tripDate",        rs.getDate("trip_date") != null ? rs.getDate("trip_date").toLocalDate() : null);
+                    row.put("tripCount",       rs.getInt("trip_count"));
+                    row.put("isModified",      rs.getBoolean("is_modified"));
+                    row.put("busNumber",       rs.getString("bus_number"));
+                    row.put("driverName",      rs.getString("driver_name"));
+                    row.put("conductorName",   rs.getString("conductor_name"));
+                    row.put("grossIncome",     rs.getBigDecimal("gross_income"));
+                    row.put("driverIncome",    rs.getBigDecimal("driver_income"));
+                    row.put("conductorIncome", rs.getBigDecimal("conductor_income"));
+                    row.put("driverBond",      rs.getBigDecimal("driver_bond"));
+                    row.put("conductorBond",   rs.getBigDecimal("conductor_bond"));
+                    row.put("commission",      rs.getBigDecimal("commission"));
+                    row.put("netIncome",       rs.getBigDecimal("net_income"));
+                    row.put("totalExpenses",   rs.getBigDecimal("total_expenses"));
+                    row.put("netProfit",       rs.getBigDecimal("net_profit"));
                     rows.add(row);
                 }
             }
@@ -61,9 +56,6 @@ public class ReportDAO {
         return rows;
     }
 
-    /**
-     * Low-income report: trips whose gross income is below the 13,000 quota.
-     */
     public List<Map<String, Object>> getLowIncomeReport(LocalDate from, LocalDate to) throws SQLException {
         String sql =
             "SELECT t.id AS trip_id, t.trip_date, b.bus_number, " +
@@ -99,21 +91,18 @@ public class ReportDAO {
         return rows;
     }
 
-    /**
-     * Summary totals (Hash-Aggregation pattern):
-     * groups by date range, sums income, expenses, net.
-     */
     public Map<String, Object> getSummary(LocalDate from, LocalDate to) throws SQLException {
         String sql =
             "SELECT " +
-            "COUNT(DISTINCT t.id)        AS total_trips, " +
-            "SUM(i.gross_income)         AS total_gross_income, " +
-            "SUM(i.bond_deduction)       AS total_bond_deduction, " +
-            "SUM(i.commission)           AS total_commission, " +
-            "SUM(i.net_income)           AS total_net_income, " +
-            "SUM(e.total_expenses)       AS total_expenses, " +
-            "SUM(i.net_income - e.total_expenses) AS total_net_profit, " +
-            "AVG(i.gross_income)         AS avg_gross_income " +
+            "COUNT(DISTINCT t.id)                              AS total_trips, " +
+            "SUM(i.gross_income)                              AS total_gross_income, " +
+            "SUM(i.driver_bond + i.conductor_bond)            AS total_bond_deduction, " +
+            "SUM(i.driver_income + i.conductor_income)        AS total_operator_income, " +
+            "SUM(i.commission)                                AS total_commission, " +
+            "SUM(i.net_income)                                AS total_net_income, " +
+            "SUM(e.total_expenses)                            AS total_expenses, " +
+            "SUM(i.net_income - e.total_expenses)             AS total_net_profit, " +
+            "AVG(i.gross_income)                              AS avg_gross_income " +
             "FROM trips t " +
             "LEFT JOIN income   i ON i.trip_id = t.id " +
             "LEFT JOIN expenses e ON e.trip_id = t.id " +
@@ -126,16 +115,17 @@ public class ReportDAO {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     Map<String, Object> m = new LinkedHashMap<>();
-                    m.put("totalTrips",        rs.getInt("total_trips"));
-                    m.put("totalGrossIncome",  rs.getBigDecimal("total_gross_income"));
-                    m.put("totalBondDeduction",rs.getBigDecimal("total_bond_deduction"));
-                    m.put("totalCommission",   rs.getBigDecimal("total_commission"));
-                    m.put("totalNetIncome",    rs.getBigDecimal("total_net_income"));
-                    m.put("totalExpenses",     rs.getBigDecimal("total_expenses"));
-                    m.put("totalNetProfit",    rs.getBigDecimal("total_net_profit"));
-                    m.put("avgGrossIncome",    rs.getBigDecimal("avg_gross_income"));
-                    m.put("from",              from);
-                    m.put("to",                to);
+                    m.put("totalTrips",          rs.getInt("total_trips"));
+                    m.put("totalGrossIncome",    rs.getBigDecimal("total_gross_income"));
+                    m.put("totalBondDeduction",  rs.getBigDecimal("total_bond_deduction"));
+                    m.put("totalOperatorIncome", rs.getBigDecimal("total_operator_income"));
+                    m.put("totalCommission",     rs.getBigDecimal("total_commission"));
+                    m.put("totalNetIncome",      rs.getBigDecimal("total_net_income"));
+                    m.put("totalExpenses",       rs.getBigDecimal("total_expenses"));
+                    m.put("totalNetProfit",      rs.getBigDecimal("total_net_profit"));
+                    m.put("avgGrossIncome",      rs.getBigDecimal("avg_gross_income"));
+                    m.put("from",                from);
+                    m.put("to",                  to);
                     return m;
                 }
             }
@@ -143,9 +133,6 @@ public class ReportDAO {
         return Collections.emptyMap();
     }
 
-    /**
-     * Changelog report: all edited trips within a date range.
-     */
     public List<Map<String, Object>> getChangelogReport(LocalDate from, LocalDate to) throws SQLException {
         String sql =
             "SELECT cl.*, u.full_name AS changed_by_name, t.trip_date " +
