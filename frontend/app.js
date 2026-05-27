@@ -720,7 +720,7 @@ async function renderEmployees() {
     <div class="page-header">
       <div><h4><i class="fas fa-users me-2"></i>Employees</h4>
         <div class="subtitle">Manage drivers and conductors</div></div>
-      ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddEmployee()"><i class="fas fa-plus me-1"></i>Add Operator</button>` : ''}
+      ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddEmployee()"><i class="fas fa-plus me-1"></i>Add Employee</button>` : ''}
     </div>
     <div class="content-card">
       <div class="table-toolbar">
@@ -763,7 +763,7 @@ function renderEmployeeRows(rows) {
       <td><strong>${e.fullName}</strong></td>
       <td>${e.birthdate || '—'}</td>
       <td>${dash(e.address)}</td>
-      <td><span class="status-badge ${e.position === 'DRIVER' ? 'status-driver' : 'status-conductor'}">${e.position}</span></td>
+      <td><span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[e.position]||'status-inactive'}">${e.position}</span></td>
       <td>${peso(e.dailyRate)}</td>
       <td><span class="status-badge ${e.isActive ? 'status-active' : 'status-inactive'}">${e.isActive ? 'Active' : 'Inactive'}</span></td>
       ${isAdmin() ? `<td>
@@ -791,7 +791,7 @@ function getEmployeeModal() {
     <div class="modal-dialog modal-lg">
       <div class="modal-content">
         <div class="modal-header">
-          <h5 class="modal-title" id="empModalTitle">Add Operator</h5>
+          <h5 class="modal-title" id="empModalTitle">Add Employee</h5>
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
@@ -806,6 +806,9 @@ function getEmployeeModal() {
               <select id="empPos" class="form-select">
                 <option value="DRIVER">Driver</option>
                 <option value="CONDUCTOR">Conductor</option>
+                <option value="HR">HR</option>
+                <option value="OPERATIONS">Operations</option>
+                <option value="MECHANIC">Mechanic</option>
               </select>
             </div>
             <div class="col-12">
@@ -836,7 +839,7 @@ function getEmployeeModal() {
 }
 
 function openAddEmployee() {
-  document.getElementById('empModalTitle').textContent = 'Add Operator';
+  document.getElementById('empModalTitle').textContent = 'Add Employee';
   document.getElementById('empId').value = '';
   ['empCode','empName','empBirthdate','empAddress'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('empRate').value = '1225';

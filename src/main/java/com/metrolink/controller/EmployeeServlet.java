@@ -67,8 +67,8 @@ public class EmployeeServlet extends HttpServlet {
             if (employeeCode == null || fullName == null || position == null) {
                 ResponseUtil.error(res, 400, "employeeCode, fullName, position are required"); return;
             }
-            if (!Set.of("DRIVER", "CONDUCTOR").contains(position)) {
-                ResponseUtil.error(res, 400, "position must be DRIVER or CONDUCTOR"); return;
+            if (!Set.of("DRIVER","CONDUCTOR","HR","OPERATIONS","MECHANIC").contains(position)) {
+                ResponseUtil.error(res, 400, "Invalid position"); return;
             }
             Employee created = dao.create(employeeCode, fullName, birthdate, address, position, dailyRate);
             int userId = (int) req.getAttribute("userId");
@@ -94,6 +94,9 @@ public class EmployeeServlet extends HttpServlet {
             String position     = (String) body.get("position");
             BigDecimal rate     = new BigDecimal(body.getOrDefault("dailyRate", 1225.00).toString());
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
+            if (position != null && !Set.of("DRIVER","CONDUCTOR","HR","OPERATIONS","MECHANIC").contains(position)) {
+                ResponseUtil.error(res, 400, "Invalid position"); return;
+            }
             dao.update(id, fullName, birthdate, address, position, rate);
             int userId = (int) req.getAttribute("userId");
             String username = (String) req.getAttribute("username");

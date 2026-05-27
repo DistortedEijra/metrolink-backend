@@ -27,7 +27,7 @@ CREATE TABLE IF NOT EXISTS employees (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     employee_code   VARCHAR(30)  NOT NULL UNIQUE,
     full_name       VARCHAR(100) NOT NULL,
-    position        ENUM('DRIVER', 'CONDUCTOR') NOT NULL,
+    position        ENUM('DRIVER','CONDUCTOR','HR','OPERATIONS','MECHANIC') NOT NULL,
     daily_rate      DECIMAL(10,2) NOT NULL DEFAULT 1225.00,  -- base rate per doc
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

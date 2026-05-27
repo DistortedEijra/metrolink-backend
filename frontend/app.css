@@ -139,6 +139,9 @@ body { background: #f0f2f8; font-family: 'Segoe UI', sans-serif; }
 .status-modified { background: #fff8e1; color: #e65100; }
 .status-driver { background: #e3f2fd; color: #1565c0; }
 .status-conductor { background: #f3e5f5; color: #6a1b9a; }
+.status-hr { background: #ede7f6; color: #4527a0; }
+.status-operations { background: #e8f4fd; color: #0277bd; }
+.status-mechanic { background: #eceff1; color: #37474f; }
 .status-admin { background: #fce4ec; color: #880e4f; }
 .status-staff { background: #e8eaf6; color: #283593; }
 
