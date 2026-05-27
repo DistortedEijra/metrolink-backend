@@ -1,5 +1,6 @@
 package com.metrolink.controller;
 
+import com.metrolink.dao.AuditDAO;
 import com.metrolink.dao.UserDAO;
 import com.metrolink.model.User;
 import com.metrolink.util.ResponseUtil;
@@ -31,7 +32,8 @@ import java.util.stream.Collectors;
 @WebServlet("/api/users/*")
 public class UserServlet extends HttpServlet {
 
-    private final UserDAO userDAO = new UserDAO();
+    private final UserDAO  userDAO  = new UserDAO();
+    private final AuditDAO auditDAO = new AuditDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
@@ -40,7 +42,6 @@ public class UserServlet extends HttpServlet {
             String pathInfo = req.getPathInfo();
 
             if (pathInfo == null || pathInfo.equals("/")) {
-                // GET /api/users — list all
                 List<User> users = userDAO.findAll();
                 List<Map<String, Object>> result = users.stream()
                     .map(this::safeUser).collect(Collectors.toList());
@@ -81,6 +82,9 @@ public class UserServlet extends HttpServlet {
 
             String hashed = BCrypt.hashpw(password, BCrypt.gensalt(12));
             User created = userDAO.create(username, hashed, fullName, birthdate, address, email, role);
+            int requesterId = (int) req.getAttribute("userId");
+            String requesterName = (String) req.getAttribute("username");
+            auditDAO.log(requesterId, requesterName, "CREATE_USER", "USER", created.getId(), "username=" + username);
             ResponseUtil.created(res, safeUser(created));
 
         } catch (SecurityException e) {
@@ -108,6 +112,9 @@ public class UserServlet extends HttpServlet {
             String role         = (String) body.get("role");
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
             userDAO.update(id, fullName, birthdate, address, email, role);
+            int requesterId = (int) req.getAttribute("userId");
+            String requesterName = (String) req.getAttribute("username");
+            auditDAO.log(requesterId, requesterName, "UPDATE_USER", "USER", id, null);
             ResponseUtil.success(res, Map.of("updated", true));
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -130,26 +137,28 @@ public class UserServlet extends HttpServlet {
         try {
             String pathInfo = req.getPathInfo();
             Map<String, Object> body = ResponseUtil.parseBody(req);
+            int requesterId = (int) req.getAttribute("userId");
+            String requesterName = (String) req.getAttribute("username");
 
             if (pathInfo != null && pathInfo.endsWith("/status")) {
                 requireAdmin(req, res);
                 int id = parseId(pathInfo.replace("/status", ""));
                 boolean isActive = (Boolean) body.get("isActive");
                 userDAO.setActive(id, isActive);
+                auditDAO.log(requesterId, requesterName, "CHANGE_USER_STATUS", "USER", id, "isActive=" + isActive);
                 ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
 
             } else if (pathInfo != null && pathInfo.endsWith("/password")) {
                 int targetId = parseId(pathInfo.replace("/password", ""));
-                int requesterId = (int) req.getAttribute("userId");
                 String requesterRole = (String) req.getAttribute("role");
 
-                // Only admin or the user themselves can change password
                 if (!requesterRole.equals("ADMIN") && requesterId != targetId) {
                     ResponseUtil.error(res, 403, "Forbidden"); return;
                 }
                 String newPassword = (String) body.get("newPassword");
                 String hashed = BCrypt.hashpw(newPassword, BCrypt.gensalt(12));
                 userDAO.updatePassword(targetId, hashed);
+                auditDAO.log(requesterId, requesterName, "CHANGE_PASSWORD", "USER", targetId, null);
                 ResponseUtil.success(res, Map.of("updated", true));
 
             } else {
@@ -162,7 +171,6 @@ public class UserServlet extends HttpServlet {
         }
     }
 
-    // Strip password from user object before sending
     private Map<String, Object> safeUser(User u) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id",        u.getId());
@@ -183,7 +191,6 @@ public class UserServlet extends HttpServlet {
     }
 
     private int parseId(String pathInfo) {
-        // pathInfo looks like "/123" or "/123/status"
         String[] parts = pathInfo.split("/");
         return Integer.parseInt(parts[1]);
     }

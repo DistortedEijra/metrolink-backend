@@ -1,5 +1,6 @@
 package com.metrolink.controller;
 
+import com.metrolink.dao.AuditDAO;
 import com.metrolink.dao.EmployeeDAO;
 import com.metrolink.model.Employee;
 import com.metrolink.util.ResponseUtil;
@@ -11,7 +12,6 @@ import java.io.IOException;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
-import java.util.stream.Collectors;
 
 /**
  * /api/employees
@@ -28,7 +28,8 @@ import java.util.stream.Collectors;
 @WebServlet("/api/employees/*")
 public class EmployeeServlet extends HttpServlet {
 
-    private final EmployeeDAO dao = new EmployeeDAO();
+    private final EmployeeDAO dao      = new EmployeeDAO();
+    private final AuditDAO    auditDAO = new AuditDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
@@ -70,6 +71,9 @@ public class EmployeeServlet extends HttpServlet {
                 ResponseUtil.error(res, 400, "position must be DRIVER or CONDUCTOR"); return;
             }
             Employee created = dao.create(employeeCode, fullName, birthdate, address, position, dailyRate);
+            int userId = (int) req.getAttribute("userId");
+            String username = (String) req.getAttribute("username");
+            auditDAO.log(userId, username, "CREATE_EMPLOYEE", "EMPLOYEE", created.getId(), "code=" + employeeCode);
             ResponseUtil.created(res, created);
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -91,6 +95,9 @@ public class EmployeeServlet extends HttpServlet {
             BigDecimal rate     = new BigDecimal(body.getOrDefault("dailyRate", 1225.00).toString());
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
             dao.update(id, fullName, birthdate, address, position, rate);
+            int userId = (int) req.getAttribute("userId");
+            String username = (String) req.getAttribute("username");
+            auditDAO.log(userId, username, "UPDATE_EMPLOYEE", "EMPLOYEE", id, null);
             ResponseUtil.success(res, Map.of("updated", true));
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -118,6 +125,9 @@ public class EmployeeServlet extends HttpServlet {
                 Map<String, Object> body = ResponseUtil.parseBody(req);
                 boolean isActive = (Boolean) body.get("isActive");
                 dao.setActive(id, isActive);
+                int userId = (int) req.getAttribute("userId");
+                String username = (String) req.getAttribute("username");
+                auditDAO.log(userId, username, "CHANGE_EMPLOYEE_STATUS", "EMPLOYEE", id, "isActive=" + isActive);
                 ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
             }
         } catch (SecurityException e) {

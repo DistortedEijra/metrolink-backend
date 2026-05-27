@@ -27,19 +27,19 @@ public class TripServlet extends HttpServlet {
     private final IncomeDAO    incomeDAO    = new IncomeDAO();
     private final ExpensesDAO  expensesDAO  = new ExpensesDAO();
     private final ChangelogDAO changelogDAO = new ChangelogDAO();
+    private final AuditDAO     auditDAO     = new AuditDAO();
     private final ObjectMapper mapper       = ResponseUtil.getMapper();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
-            String pathInfo = req.getPathInfo();   // null | "/" | "/123" | "/search" | etc.
+            String pathInfo = req.getPathInfo();
 
             if (pathInfo == null || pathInfo.equals("/")) {
                 ResponseUtil.success(res, tripDAO.findAll());
                 return;
             }
 
-            // Special paths
             if (pathInfo.equals("/search")) {
                 String q = req.getParameter("q");
                 if (q == null || q.isBlank()) { ResponseUtil.error(res, 400, "Query param 'q' required"); return; }
@@ -61,7 +61,6 @@ public class TripServlet extends HttpServlet {
             String[] parts = pathInfo.split("/");
             int id = Integer.parseInt(parts[1]);
 
-            // Sub-resources
             if (parts.length == 3 && parts[2].equals("income")) {
                 var income = incomeDAO.findByTripId(id);
                 if (income == null) { ResponseUtil.error(res, 404, "Income record not found"); return; }
@@ -75,7 +74,6 @@ public class TripServlet extends HttpServlet {
                 return;
             }
 
-            // Get single trip
             var trip = tripDAO.findById(id);
             if (trip == null) { ResponseUtil.error(res, 404, "Trip not found"); return; }
             ResponseUtil.success(res, trip);
@@ -90,6 +88,7 @@ public class TripServlet extends HttpServlet {
         try {
             String pathInfo = req.getPathInfo();
             int userId = (int) req.getAttribute("userId");
+            String username = (String) req.getAttribute("username");
 
             // POST /api/trips/{id}/income
             if (pathInfo != null && pathInfo.matches("/\\d+/income")) {
@@ -104,6 +103,7 @@ public class TripServlet extends HttpServlet {
                     bd(body, "conductorBond"),
                     bd(body, "commission")
                 );
+                auditDAO.log(userId, username, "CREATE_INCOME", "TRIP", tripId, null);
                 ResponseUtil.created(res, saved);
                 return;
             }
@@ -124,6 +124,7 @@ public class TripServlet extends HttpServlet {
                     damageRemark, employeeId,
                     bd(body, "otherExpenses")
                 );
+                auditDAO.log(userId, username, "CREATE_EXPENSES", "TRIP", tripId, null);
                 ResponseUtil.created(res, saved);
                 return;
             }
@@ -141,6 +142,7 @@ public class TripServlet extends HttpServlet {
                 (String) body.getOrDefault("remarks", null),
                 userId
             );
+            auditDAO.log(userId, username, "CREATE_TRIP", "TRIP", (Integer) created.get("id"), null);
             ResponseUtil.created(res, created);
 
         } catch (Exception e) {
@@ -154,8 +156,8 @@ public class TripServlet extends HttpServlet {
             requireAdmin(req);
             int id = Integer.parseInt(req.getPathInfo().split("/")[1]);
             int editorId = (int) req.getAttribute("userId");
+            String editorName = (String) req.getAttribute("username");
 
-            // Snapshot before edit for changelog
             var before = tripDAO.findById(id);
             if (before == null) { ResponseUtil.error(res, 404, "Trip not found"); return; }
 
@@ -173,12 +175,12 @@ public class TripServlet extends HttpServlet {
                 editorId
             );
 
-            // Log change to audit trail
             if (updated) {
                 var after = tripDAO.findById(id);
                 changelogDAO.log(id, editorId, "TRIP_DETAILS",
                     mapper.writeValueAsString(before),
                     mapper.writeValueAsString(after));
+                auditDAO.log(editorId, editorName, "UPDATE_TRIP", "TRIP", id, null);
             }
 
             ResponseUtil.success(res, Map.of("updated", updated));

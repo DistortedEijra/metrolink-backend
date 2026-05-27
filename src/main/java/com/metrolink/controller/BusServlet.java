@@ -1,5 +1,6 @@
 package com.metrolink.controller;
 
+import com.metrolink.dao.AuditDAO;
 import com.metrolink.dao.BusDAO;
 import com.metrolink.util.ResponseUtil;
 import jakarta.servlet.ServletException;
@@ -17,7 +18,8 @@ import java.util.Map;
 @WebServlet("/api/buses/*")
 public class BusServlet extends HttpServlet {
 
-    private final BusDAO dao = new BusDAO();
+    private final BusDAO   dao      = new BusDAO();
+    private final AuditDAO auditDAO = new AuditDAO();
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
@@ -51,6 +53,9 @@ public class BusServlet extends HttpServlet {
                 ResponseUtil.error(res, 400, "busNumber and plateNo are required"); return;
             }
             var created = dao.create(busNumber, plateNo, model);
+            int userId = (int) req.getAttribute("userId");
+            String username = (String) req.getAttribute("username");
+            auditDAO.log(userId, username, "CREATE_BUS", "BUS", (Integer) created.get("id"), "busNumber=" + busNumber);
             ResponseUtil.created(res, created);
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -66,6 +71,9 @@ public class BusServlet extends HttpServlet {
             int id = parseId(req.getPathInfo());
             Map<String, Object> body = ResponseUtil.parseBody(req);
             dao.update(id, (String) body.get("busNumber"), (String) body.get("plateNo"), (String) body.get("model"));
+            int userId = (int) req.getAttribute("userId");
+            String username = (String) req.getAttribute("username");
+            auditDAO.log(userId, username, "UPDATE_BUS", "BUS", id, null);
             ResponseUtil.success(res, Map.of("updated", true));
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -93,6 +101,9 @@ public class BusServlet extends HttpServlet {
                 Map<String, Object> body = ResponseUtil.parseBody(req);
                 boolean isActive = (Boolean) body.get("isActive");
                 dao.setActive(id, isActive);
+                int userId = (int) req.getAttribute("userId");
+                String username = (String) req.getAttribute("username");
+                auditDAO.log(userId, username, "CHANGE_BUS_STATUS", "BUS", id, "isActive=" + isActive);
                 ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
             }
         } catch (SecurityException e) {

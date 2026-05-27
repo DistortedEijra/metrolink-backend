@@ -39,19 +39,7 @@ async function api(path, method = 'GET', body = null) {
 
   if (res.status === 401) { clearSession(); renderLogin(); throw new Error('Unauthorized'); }
 
-  const contentType = res.headers.get('content-type') || '';
-  let json = null;
-  if (contentType.includes('application/json')) {
-    json = await res.json();
-  } else {
-    const text = await res.text();
-    const message = res.ok
-      ? 'Server returned an unexpected response.'
-      : `Server error ${res.status}. Check backend/database configuration.`;
-    toast(message, 'danger');
-    throw new Error(text || message);
-  }
-
+  const json = await res.json();
   if (!json.success) {
     toast(json.message || 'An error occurred', 'danger');
     throw new Error(json.message);
@@ -78,7 +66,8 @@ function go(page) {
   if (getToken() && page === 'login')  { go('trips'); return; }
   currentPage = page;
   const map = { login: renderLogin, trips: renderTrips, employees: renderEmployees,
-                buses: renderBuses, reports: renderReports, users: renderUsers, backup: renderBackup };
+                buses: renderBuses, reports: renderReports, users: renderUsers, backup: renderBackup,
+                audit: renderAudit };
   (map[page] || (() => toast('Unknown page', 'warning')))();
 }
 
@@ -92,7 +81,8 @@ function shell(activePage, content) {
     { id: 'reports',   icon: 'fa-chart-bar',    label: 'Reports' },
   ];
   if (isAdmin()) {
-    nav.push({ id: 'users',  icon: 'fa-user-cog',  label: 'Staff Accounts' });
+    nav.push({ id: 'users',  icon: 'fa-user-cog',   label: 'Staff Accounts' });
+    nav.push({ id: 'audit',  icon: 'fa-clipboard-list', label: 'Audit Log' });
     nav.push({ id: 'backup', icon: 'fa-database',   label: 'Backup' });
   }
 
@@ -1400,6 +1390,78 @@ async function doBackup(btn) {
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-download me-2"></i>Generate &amp; Download Backup';
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// AUDIT LOG (Admin only)
+// ══════════════════════════════════════════════════════════
+async function renderAudit() {
+  if (!isAdmin()) { go('trips'); return; }
+  const today = new Date().toISOString().split('T')[0];
+  const thirtyAgo = new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0];
+  shell('audit', `
+    <div class="page-header">
+      <div><h4><i class="fas fa-clipboard-list me-2"></i>Audit Log</h4>
+        <div class="subtitle">System-wide action history</div></div>
+    </div>
+    <div class="card mb-3">
+      <div class="card-body py-2 d-flex gap-2 align-items-end flex-wrap">
+        <div>
+          <label class="form-label mb-1 small">From</label>
+          <input type="date" id="auditFrom" class="form-control form-control-sm" value="${thirtyAgo}">
+        </div>
+        <div>
+          <label class="form-label mb-1 small">To</label>
+          <input type="date" id="auditTo" class="form-control form-control-sm" value="${today}">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="loadAuditLog()">
+          <i class="fas fa-search me-1"></i>Load
+        </button>
+      </div>
+    </div>
+    <div id="auditTableWrap"></div>
+  `);
+  loadAuditLog();
+}
+
+async function loadAuditLog() {
+  const from = document.getElementById('auditFrom').value;
+  const to   = document.getElementById('auditTo').value;
+  const wrap = document.getElementById('auditTableWrap');
+  wrap.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+  try {
+    const rows = await api(`/audit?from=${from}&to=${to}`);
+    if (!rows.length) {
+      wrap.innerHTML = '<div class="alert alert-info">No audit entries found for this period.</div>';
+      return;
+    }
+    const actionBadge = a => {
+      if (a.startsWith('LOGIN'))          return `<span class="badge bg-primary">${a}</span>`;
+      if (a.startsWith('CREATE'))         return `<span class="badge bg-success">${a}</span>`;
+      if (a.startsWith('UPDATE'))         return `<span class="badge bg-warning text-dark">${a}</span>`;
+      return                                     `<span class="badge bg-danger">${a}</span>`;
+    };
+    wrap.innerHTML = `
+      <div class="table-responsive">
+        <table class="table table-hover table-sm">
+          <thead><tr>
+            <th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th>
+          </tr></thead>
+          <tbody>
+            ${rows.map(r => `<tr>
+              <td class="text-nowrap">${r.loggedAt ? new Date(r.loggedAt).toLocaleString('en-PH') : '—'}</td>
+              <td>${r.username}</td>
+              <td>${actionBadge(r.action)}</td>
+              <td>${r.entity || '—'}</td>
+              <td>${r.entityId != null ? r.entityId : '—'}</td>
+              <td>${r.details || '—'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch {
+    wrap.innerHTML = '<div class="alert alert-danger">Failed to load audit log.</div>';
   }
 }
 

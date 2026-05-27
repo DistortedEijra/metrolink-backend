@@ -128,6 +128,21 @@ CREATE TABLE IF NOT EXISTS trip_changelogs (
 );
 
 -- ============================================================
+-- AUDIT LOGS TABLE (System-wide action trail, admin-only)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS audit_logs (
+    id          INT AUTO_INCREMENT PRIMARY KEY,
+    user_id     INT           NULL,
+    username    VARCHAR(100)  NOT NULL,
+    action      VARCHAR(100)  NOT NULL,
+    entity      VARCHAR(50)   NULL,
+    entity_id   INT           NULL,
+    details     TEXT          NULL,
+    logged_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);
+
+-- ============================================================
 -- INDEXES for Binary Search on date-based queries
 -- ============================================================
 CREATE INDEX idx_trips_date        ON trips(trip_date);
@@ -135,6 +150,7 @@ CREATE INDEX idx_trips_bus         ON trips(bus_id);
 CREATE INDEX idx_income_trip       ON income(trip_id);
 CREATE INDEX idx_expenses_trip     ON expenses(trip_id);
 CREATE INDEX idx_changelogs_trip   ON trip_changelogs(trip_id);
+CREATE INDEX idx_audit_logged_at   ON audit_logs(logged_at);
 
 -- ============================================================
 -- DEFAULT ADMIN SEED (password: admin123 — change on first login)
