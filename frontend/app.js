@@ -444,8 +444,8 @@ async function openEditTrip(id) {
   document.getElementById('tripId').value = id;
   document.getElementById('tDate').value = trip.tripDate;
   document.getElementById('tCount').value = trip.tripCount;
-  document.getElementById('tDispatch').value = trip.dispatchTime || '';
-  document.getElementById('tArrival').value = trip.arrivalTime || '';
+  document.getElementById('tDispatch').value = (trip.dispatchTime || '').substring(0, 5);
+  document.getElementById('tArrival').value  = (trip.arrivalTime  || '').substring(0, 5);
   document.getElementById('tRemarks').value = trip.remarks || '';
   populateTripDropdowns(trip.busId, trip.driverId, trip.conductorId);
   switchTabTo(0);
