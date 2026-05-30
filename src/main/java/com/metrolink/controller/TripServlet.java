@@ -9,6 +9,7 @@ import jakarta.servlet.http.*;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * /api/trips           GET (all), POST (create)
@@ -162,16 +163,40 @@ public class TripServlet extends HttpServlet {
             if (before == null) { ResponseUtil.error(res, 404, "Trip not found"); return; }
 
             Map<String, Object> body = ResponseUtil.parseBody(req);
+            
+            LocalDate bodyTripDate = LocalDate.parse((String) body.get("tripDate"));
+            int bodyBusId = (int) body.get("busId");
+            int bodyDriverId = (int) body.get("driverId");
+            int bodyConductorId = (int) body.get("conductorId");
+            String bodyDispatchTime = (String) body.get("dispatchTime");
+            String bodyArrivalTime = (String) body.getOrDefault("arrivalTime", null);
+            int bodyTripCount = (int) body.getOrDefault("tripCount", 0);
+            String bodyRemarks = (String) body.getOrDefault("remarks", null);
+            
+            boolean changed = !Objects.equals(before.get("tripDate"), bodyTripDate)
+                           || !Objects.equals(before.get("busId"), bodyBusId)
+                           || !Objects.equals(before.get("driverId"), bodyDriverId)
+                           || !Objects.equals(before.get("conductorId"), bodyConductorId)
+                           || !Objects.equals(normTime((String) before.get("dispatchTime")), normTime(bodyDispatchTime))
+                           || !Objects.equals(normTime((String) before.get("arrivalTime")), normTime(bodyArrivalTime))
+                           || !Objects.equals(before.get("tripCount"), bodyTripCount)
+                           || !Objects.equals(normStr((String) before.get("remarks")), normStr(bodyRemarks));
+
+            if (!changed) {
+                ResponseUtil.success(res, Map.of("updated", false, "message", "No changes detected"));
+                return;
+            }
+
             boolean updated = tripDAO.update(
                 id,
-                LocalDate.parse((String) body.get("tripDate")),
-                (int) body.get("busId"),
-                (int) body.get("driverId"),
-                (int) body.get("conductorId"),
-                (String) body.get("dispatchTime"),
-                (String) body.getOrDefault("arrivalTime", null),
-                (int) body.getOrDefault("tripCount", 0),
-                (String) body.getOrDefault("remarks", null),
+                bodyTripDate,
+                bodyBusId,
+                bodyDriverId,
+                bodyConductorId,
+                bodyDispatchTime,
+                bodyArrivalTime,
+                bodyTripCount,
+                bodyRemarks,
                 editorId
             );
 
@@ -199,5 +224,18 @@ public class TripServlet extends HttpServlet {
 
     private java.math.BigDecimal bd(Map<String, Object> body, String key) {
         return new java.math.BigDecimal(body.getOrDefault(key, 0).toString());
+    }
+
+    private String normTime(String t) {
+        if (t == null || t.isBlank()) return null;
+        String[] p = t.split("\\.")[0].split(":");
+        String hh = p.length > 0 ? p[0] : "00";
+        String mm = p.length > 1 ? p[1] : "00";
+        String ss = p.length > 2 ? p[2] : "00";
+        return String.format("%2s:%2s:%2s", hh, mm, ss).replace(' ', '0');
+    }
+
+    private String normStr(String s) {
+        return (s == null || s.isBlank()) ? null : s.trim();
     }
 }
