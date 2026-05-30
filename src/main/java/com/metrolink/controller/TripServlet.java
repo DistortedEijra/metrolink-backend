@@ -95,6 +95,7 @@ public class TripServlet extends HttpServlet {
             if (pathInfo != null && pathInfo.matches("/\\d+/income")) {
                 int tripId = Integer.parseInt(pathInfo.split("/")[1]);
                 Map<String, Object> body = ResponseUtil.parseBody(req);
+                var before = incomeDAO.findByTripId(tripId);
                 var saved = incomeDAO.save(
                     tripId,
                     bd(body, "grossIncome"),
@@ -104,6 +105,17 @@ public class TripServlet extends HttpServlet {
                     bd(body, "conductorBond"),
                     bd(body, "commission")
                 );
+                
+                if (before != null) {
+                    boolean changed = diffBD(before, body, "grossIncome") ||
+                                      diffBD(before, body, "driverIncome") ||
+                                      diffBD(before, body, "conductorIncome") ||
+                                      diffBD(before, body, "driverBond") ||
+                                      diffBD(before, body, "conductorBond") ||
+                                      diffBD(before, body, "commission");
+                    if (changed) tripDAO.markModified(tripId, userId);
+                }
+                
                 auditDAO.log(userId, username, "CREATE_INCOME", "TRIP", tripId, null);
                 ResponseUtil.created(res, saved);
                 return;
@@ -116,6 +128,8 @@ public class TripServlet extends HttpServlet {
                 String  damageRemark = (String) body.get("damageRemark");
                 Integer employeeId   = body.get("employeeId") != null
                     ? ((Number) body.get("employeeId")).intValue() : null;
+                
+                var before = expensesDAO.findByTripId(tripId);
                 var saved = expensesDAO.save(
                     tripId,
                     bd(body, "diesel"),       bd(body, "washing"),
@@ -125,6 +139,18 @@ public class TripServlet extends HttpServlet {
                     damageRemark, employeeId,
                     bd(body, "otherExpenses")
                 );
+
+                if (before != null) {
+                    boolean changed = diffBD(before, body, "diesel") || diffBD(before, body, "washing") ||
+                                      diffBD(before, body, "driverSalary") || diffBD(before, body, "overtime") ||
+                                      diffBD(before, body, "nightDiff") || diffBD(before, body, "bonus") ||
+                                      diffBD(before, body, "cashAdvance") || diffBD(before, body, "damages") ||
+                                      diffBD(before, body, "otherExpenses") ||
+                                      !Objects.equals(normStr((String) before.get("damageRemark")), normStr(damageRemark)) ||
+                                      !Objects.equals(before.get("employeeId"), employeeId);
+                    if (changed) tripDAO.markModified(tripId, userId);
+                }
+
                 auditDAO.log(userId, username, "CREATE_EXPENSES", "TRIP", tripId, null);
                 ResponseUtil.created(res, saved);
                 return;
@@ -237,5 +263,14 @@ public class TripServlet extends HttpServlet {
 
     private String normStr(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
+    }
+
+    private boolean diffBD(Map<String, Object> existing, Map<String, Object> body, String key) {
+        if (existing == null) return false;
+        java.math.BigDecimal oldVal = (java.math.BigDecimal) existing.get(key);
+        java.math.BigDecimal newVal = bd(body, key);
+        if (oldVal == null && newVal == null) return false;
+        if (oldVal == null || newVal == null) return true;
+        return oldVal.compareTo(newVal) != 0;
     }
 }

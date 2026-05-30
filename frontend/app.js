@@ -251,6 +251,14 @@ function renderTripRows(rows) {
     </tr>`).join('');
 }
 
+/** Refresh only the trip table rows — keeps modals alive in the DOM */
+async function reloadTripRows() {
+  try {
+    tripsList = await api('/trips');
+    renderTripRows(tripsList);
+  } catch {}
+}
+
 function searchTrips(q) {
   if (!q.trim()) { renderTripRows(tripsList); return; }
   api(`/trips/search?q=${encodeURIComponent(q)}`).then(renderTripRows).catch(() => {});
@@ -560,8 +568,9 @@ async function saveTripAll() {
       otherExpenses: +document.getElementById('eOther').value || 0
     });
     toast('Trip saved successfully!');
-    bootstrap.Modal.getInstance(document.getElementById('tripModal')).hide();
-    renderTrips();
+    const tripModalEl = document.getElementById('tripModal');
+    tripModalEl.addEventListener('hidden.bs.modal', () => renderTrips(), { once: true });
+    bootstrap.Modal.getInstance(tripModalEl).hide();
   } finally { if (btn) btn.disabled = false; }
 }
 
@@ -608,7 +617,7 @@ let ieCurrentTripId = null;
 async function openIncomeExp(tripId, busNum, tripDate) {
   ieCurrentTripId = tripId;
   document.getElementById('ieTitle').innerHTML = `<i class="fas fa-dollar-sign me-2"></i>Income & Expenses — Bus ${busNum} (${tripDate})`;
-  const modal = new bootstrap.Modal(document.getElementById('ieModal'));
+  const modal = bootstrap.Modal.getOrCreateInstance(document.getElementById('ieModal'));
   modal.show();
   document.getElementById('ieBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
 
@@ -695,6 +704,8 @@ function ieCalcTotal() {
 }
 
 async function saveIncomeExp() {
+  const btn = document.getElementById('ieSaveBtn');
+  if (btn) btn.disabled = true;
   try {
     await api(`/trips/${ieCurrentTripId}/income`, 'POST', {
       grossIncome:     +document.getElementById('ie_gross').value||0,
@@ -719,8 +730,12 @@ async function saveIncomeExp() {
       otherExpenses: +document.getElementById('ie_other').value||0
     });
     toast('Income & Expenses saved!');
-    bootstrap.Modal.getInstance(document.getElementById('ieModal')).hide();
-  } catch {}
+    const ieModalEl = document.getElementById('ieModal');
+    ieModalEl.addEventListener('hidden.bs.modal', () => reloadTripRows(), { once: true });
+    bootstrap.Modal.getInstance(ieModalEl).hide();
+  } catch {
+    if (btn) btn.disabled = false;
+  }
 }
 
 // ══════════════════════════════════════════════════════════

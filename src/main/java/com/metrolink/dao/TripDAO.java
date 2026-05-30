@@ -120,6 +120,17 @@ public class TripDAO {
         }
     }
 
+    /** Mark trip as modified if its income/expenses change */
+    public void markModified(int id, int modifiedBy) throws SQLException {
+        String sql = "UPDATE trips SET is_modified=TRUE, modified_by=?, modified_at=NOW() WHERE id=?";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, modifiedBy);
+            ps.setInt(2, id);
+            ps.executeUpdate();
+        }
+    }
+
     /** Keyword search across bus number, driver name, conductor name, remarks */
     public List<Map<String, Object>> search(String keyword) throws SQLException {
         List<Map<String, Object>> list = new ArrayList<>();
