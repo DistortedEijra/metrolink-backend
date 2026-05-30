@@ -279,9 +279,6 @@ function getTripModal() {
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <ul class="nav trip-tabs" id="tripTabs">
-            <li class="nav-item"><button class="nav-link active" data-tab="0">Trip Details</button></li>
-          </ul>
           <div id="tripTab0">
             <input type="hidden" id="tripId">
             <div class="row g-3">
@@ -322,8 +319,8 @@ function getTripModal() {
         </div>
         <div class="modal-footer">
           <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
-          <button class="btn btn-success btn-sm" onclick="saveTripModal()">
-            <i class="fas fa-save me-1"></i>Save Trip
+          <button class="btn btn-primary btn-sm" id="tabSave" onclick="saveTripDetails()">
+            <i class="fas fa-save me-1"></i>Save Changes
           </button>
         </div>
       </div>
@@ -331,26 +328,25 @@ function getTripModal() {
   </div>`;
 }
 
-// Trip modal tab management
-let tripTabIdx = 0;
+// Trip modal state
 let savedTripId = null;
 let tripModalMode = 'add';
 
 function openAddTrip() {
-  tripTabIdx = 0; savedTripId = null; tripModalMode = 'add';
+  savedTripId = null; tripModalMode = 'add';
   document.getElementById('tripModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Add Trip';
   document.getElementById('tripId').value = '';
+  ['tDate','tDispatch','tArrival','tRemarks'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.value = '';
+  });
   document.getElementById('tDate').value = new Date().toISOString().split('T')[0];
-  document.getElementById('tCount').value = 4;
-  document.getElementById('tDispatch').value = '';
-  document.getElementById('tArrival').value = '';
-  document.getElementById('tRemarks').value = '';
   populateTripDropdowns();
-  new bootstrap.Modal(document.getElementById('tripModal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('tripModal')).show();
 }
 
 async function openEditTrip(id) {
-  tripTabIdx = 0; savedTripId = id; tripModalMode = 'edit';
+  savedTripId = id; tripModalMode = 'edit';
   document.getElementById('tripModalTitle').innerHTML = '<i class="fas fa-edit me-2"></i>Edit Trip';
   const trip = await api(`/trips/${id}`);
   document.getElementById('tripId').value = id;
@@ -360,8 +356,7 @@ async function openEditTrip(id) {
   document.getElementById('tArrival').value  = (trip.arrivalTime  || '').substring(0, 5);
   document.getElementById('tRemarks').value = trip.remarks || '';
   populateTripDropdowns(trip.busId, trip.driverId, trip.conductorId);
-  switchTabTo(0);
-  new bootstrap.Modal(document.getElementById('tripModal')).show();
+  bootstrap.Modal.getOrCreateInstance(document.getElementById('tripModal')).show();
 }
 
 function populateTripDropdowns(busId, driverId, conductorId) {
@@ -372,13 +367,14 @@ function populateTripDropdowns(busId, driverId, conductorId) {
     tripDrivers.map(d => `<option value="${d.id}" ${d.id == driverId ? 'selected' : ''}>${d.fullName}</option>`).join('');
   document.getElementById('tConductor').innerHTML =
     tripConductors.map(c => `<option value="${c.id}" ${c.id == conductorId ? 'selected' : ''}>${c.fullName}</option>`).join('');
+  // Populate employee responsible dropdown for damages
+  const allEmps = [...tripDrivers, ...tripConductors].sort((a,b) => a.fullName.localeCompare(b.fullName));
+  const empSel = document.getElementById('eEmployeeId');
+  if (empSel) empSel.innerHTML = '<option value="">— None —</option>' +
+    allEmps.map(e => `<option value="${e.id}">${e.fullName} (${e.position})</option>`).join('');
 }
 
-function switchTabTo(idx) {
-  tripTabIdx = idx;
-}
-
-async function saveTripModal() {
+async function saveTripDetails() {
   const body = {
     tripDate:     document.getElementById('tDate').value,
     busId:        +document.getElementById('tBus').value,
@@ -391,23 +387,37 @@ async function saveTripModal() {
   };
 
   if (!body.tripDate || !body.busId || !body.driverId || !body.conductorId || !body.dispatchTime) {
-    toast('Please fill all required fields', 'warning'); return;
+    toast('Please fill all required fields', 'warning'); return false;
   }
 
-  const btn = document.querySelector('#tripModal .modal-footer .btn-success');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving…';
   try {
     if (tripModalMode === 'add' && !savedTripId) {
-      await api('/trips', 'POST', body);
-      toast('Trip created');
+      const trip = await api('/trips', 'POST', body);
+      savedTripId = trip.id;
+      toast('Trip created successfully!');
     } else if (tripModalMode === 'edit' && savedTripId) {
       await api(`/trips/${savedTripId}`, 'PUT', body);
-      toast('Trip updated');
+      toast('Trip updated successfully!');
     }
-    const modalEl = document.getElementById('tripModal');
-    modalEl.addEventListener('hidden.bs.modal', () => renderTrips(), { once: true });
-    bootstrap.Modal.getInstance(modalEl).hide();
-  } catch { btn.disabled = false; btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Trip'; }
+    const tripModalEl = document.getElementById('tripModal');
+    tripModalEl.addEventListener('hidden.bs.modal', () => renderTrips(), { once: true });
+    bootstrap.Modal.getInstance(tripModalEl).hide();
+    return true;
+  } catch { return false; }
+}
+
+function calcNet() {
+  const g  = +document.getElementById('iGross').value || 0;
+  const db = +document.getElementById('iDriverBond').value || 0;
+  const cb = +document.getElementById('iConductorBond').value || 0;
+  const c  = +document.getElementById('iCommission').value || 0;
+  document.getElementById('netDisplay').textContent = peso(g - db - cb - c);
+}
+
+function calcTotal() {
+  const ids = ['eDiesel','eWashing','eSalary','eOT','eNight','eBonus','eCash','eDamage','eOther'];
+  const total = ids.reduce((s, id) => s + (+document.getElementById(id).value || 0), 0);
+  document.getElementById('totalDisplay').textContent = peso(total);
 }
 
 // Income/Expenses view modal
