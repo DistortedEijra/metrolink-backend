@@ -565,7 +565,7 @@ async function saveIncomeExp() {
     const ieModalEl = document.getElementById('ieModal');
     ieModalEl.addEventListener('hidden.bs.modal', () => reloadTripRows(), { once: true });
     bootstrap.Modal.getInstance(ieModalEl).hide();
-  } catch {
+  } finally {
     if (btn) btn.disabled = false;
   }
 }
