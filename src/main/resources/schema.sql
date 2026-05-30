@@ -80,9 +80,12 @@ CREATE TABLE IF NOT EXISTS income (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     trip_id         INT            NOT NULL UNIQUE,   -- one income record per trip
     gross_income    DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
-    bond_deduction  DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+    driver_income   DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+    conductor_income DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+    driver_bond     DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
+    conductor_bond  DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
     commission      DECIMAL(12,2)  NOT NULL DEFAULT 0.00,
-    net_income      DECIMAL(12,2)  GENERATED ALWAYS AS (gross_income - bond_deduction - commission) STORED,
+    net_income      DECIMAL(12,2)  GENERATED ALWAYS AS (gross_income - driver_bond - conductor_bond - commission) STORED,
     created_at      DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME       NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (trip_id) REFERENCES trips(id) ON DELETE CASCADE

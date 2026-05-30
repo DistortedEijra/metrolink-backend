@@ -60,6 +60,17 @@ function toast(msg, type = 'success') {
 const peso = v => v == null ? '—' : '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 const dash = v => v == null || v === '' ? '—' : v;
 
+/** Normalize a time string to HH:MM:SS format for MySQL TIME column */
+function normalizeTime(val) {
+  if (!val) return val;
+  // Strip anything after a dot (e.g. "15:51:00.0") and split by colon
+  const parts = val.split('.')[0].split(':');
+  const hh = (parts[0] || '00').padStart(2, '0');
+  const mm = (parts[1] || '00').padStart(2, '0');
+  const ss = (parts[2] || '00').padStart(2, '0');
+  return `${hh}:${mm}:${ss}`;
+}
+
 // ── Navigate ───────────────────────────────────────────────
 function go(page) {
   if (!getToken() && page !== 'login') { renderLogin(); return; }
@@ -498,8 +509,8 @@ async function saveTripDetails() {
     busId:        +document.getElementById('tBus').value,
     driverId:     +document.getElementById('tDriver').value,
     conductorId:  +document.getElementById('tConductor').value,
-    dispatchTime: document.getElementById('tDispatch').value + ':00',
-    arrivalTime:  (document.getElementById('tArrival').value || '00:00') + ':00',
+    dispatchTime: normalizeTime(document.getElementById('tDispatch').value),
+    arrivalTime: normalizeTime(document.getElementById('tArrival').value || '00:00'),
     tripCount:    +document.getElementById('tCount').value,
     remarks:      document.getElementById('tRemarks').value
   };

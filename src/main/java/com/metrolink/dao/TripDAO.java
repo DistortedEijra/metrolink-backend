@@ -4,6 +4,8 @@ import com.metrolink.config.DatabaseConfig;
 
 import java.sql.*;
 import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import java.util.*;
 
 public class TripDAO {
@@ -82,8 +84,8 @@ public class TripDAO {
             ps.setInt(2, busId);
             ps.setInt(3, driverId);
             ps.setInt(4, conductorId);
-            ps.setString(5, dispatchTime);
-            ps.setString(6, arrivalTime);
+            ps.setString(5, normalizeTime(dispatchTime));
+            ps.setString(6, normalizeTime(arrivalTime));
             ps.setInt(7, tripCount);
             ps.setString(8, remarks);
             ps.setInt(9, createdBy);
@@ -108,8 +110,8 @@ public class TripDAO {
             ps.setInt(2, busId);
             ps.setInt(3, driverId);
             ps.setInt(4, conductorId);
-            ps.setString(5, dispatchTime);
-            ps.setString(6, arrivalTime);
+            ps.setString(5, normalizeTime(dispatchTime));
+            ps.setString(6, normalizeTime(arrivalTime));
             ps.setInt(7, tripCount);
             ps.setString(8, remarks);
             ps.setInt(9, modifiedBy);
@@ -157,5 +159,21 @@ public class TripDAO {
         m.put("createdBy",     rs.getInt("created_by"));
         m.put("createdAt",     rs.getTimestamp("created_at"));
         return m;
+    }
+
+    /**
+     * Normalize a time string to HH:MM:SS format.
+     * Handles malformed values like "15:51:00:00" by taking only the first 3 segments.
+     */
+    private String normalizeTime(String time) {
+        if (time == null || time.isBlank()) return null;
+        // Strip anything after a dot (e.g. "15:51:00.0")
+        String clean = time.split("\\.")[0];
+        String[] parts = clean.split(":");
+        String hh = parts.length > 0 ? parts[0] : "00";
+        String mm = parts.length > 1 ? parts[1] : "00";
+        String ss = parts.length > 2 ? parts[2] : "00";
+        // Pad each to 2 digits and return exactly HH:MM:SS
+        return String.format("%2s:%2s:%2s", hh, mm, ss).replace(' ', '0');
     }
 }
