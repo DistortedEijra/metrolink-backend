@@ -1769,7 +1769,7 @@ async function loadFinancePayroll() {
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <thead><tr>
-            <th>Code</th><th>Employee</th><th>Position</th><th>Days</th><th>Trips</th>
+            <th>Date</th><th>Code</th><th>Employee</th><th>Position</th>
             <th>Base Pay</th><th>Bonus</th><th>Gross Pay</th><th>Deductions</th><th>Net Pay</th>
             <th>Status</th><th></th>
           </tr></thead>
@@ -1786,13 +1786,14 @@ async function loadFinancePayroll() {
               const actionBtn = (isRecord && status === 'PENDING')
                 ? `<button class="btn btn-success btn-sm btn-icon" onclick="markPayrollPaid(${r.id})" title="Mark as Paid"><i class="fas fa-check"></i></button>`
                 : '';
-              const isOperational = ['DRIVER','CONDUCTOR'].includes(r.position);
+              const dateStr = r.tripDate
+                ? new Date(r.tripDate + 'T00:00:00').toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'})
+                : '—';
               return `<tr>
+                <td class="text-nowrap small">${dateStr}</td>
                 <td><code>${r.employeeCode}</code></td>
                 <td><strong>${r.fullName}</strong></td>
                 <td><span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[r.position]||''}">${r.position}</span></td>
-                <td class="text-center">${isOperational ? (r.daysWorked || 0) : '—'}</td>
-                <td class="text-center">${isOperational ? (r.tripCount || 0) : '—'}</td>
                 <td>${peso(r.basePay)}</td>
                 <td class="text-success">${Number(r.bonusPay||0) > 0 ? '+' + peso(r.bonusPay) : '—'}</td>
                 <td>${peso(r.grossPay)}</td>

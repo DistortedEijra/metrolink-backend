@@ -153,6 +153,7 @@ CREATE TABLE IF NOT EXISTS payroll_records (
     id           INT AUTO_INCREMENT PRIMARY KEY,
     period_start DATE          NOT NULL,
     period_end   DATE          NOT NULL,
+    trip_date    DATE          NULL DEFAULT NULL,   -- daily date for DRIVER/CONDUCTOR; NULL for fixed staff
     employee_id  INT           NOT NULL,
     gross_pay    DECIMAL(12,2) NOT NULL,
     deductions   DECIMAL(12,2) NOT NULL DEFAULT 0.00,
