@@ -41,6 +41,7 @@ public class BackupServlet extends HttpServlet {
             backupDir.mkdirs();
             File backupFile = new File(backupDir, filename);
             File defaultsFile = File.createTempFile("metrolink_mysqldump_", ".cnf");
+            File errorFile = File.createTempFile("metrolink_mysqldump_", ".err");
 
             try {
                 try (Writer writer = new OutputStreamWriter(new FileOutputStream(defaultsFile), StandardCharsets.UTF_8)) {
@@ -50,7 +51,7 @@ public class BackupServlet extends HttpServlet {
                 }
 
                 ProcessBuilder pb = new ProcessBuilder(
-                    "mysqldump",
+                    findMysqldumpExecutable(),
                     "--defaults-extra-file=" + defaultsFile.getAbsolutePath(),
                     "--single-transaction",
                     "--routines",
@@ -58,17 +59,18 @@ public class BackupServlet extends HttpServlet {
                     dbName
                 );
                 pb.redirectOutput(backupFile);
-                pb.redirectErrorStream(false);
+                pb.redirectError(errorFile);
 
                 Process process = pb.start();
                 int exitCode = process.waitFor();
 
                 if (exitCode != 0) {
-                    ResponseUtil.error(res, 500, "Backup failed with exit code: " + exitCode);
+                    ResponseUtil.error(res, 500, "Backup failed with exit code: " + exitCode + backupError(errorFile));
                     return;
                 }
             } finally {
                 defaultsFile.delete();
+                errorFile.delete();
             }
 
             // Stream the file as a download
@@ -110,5 +112,35 @@ public class BackupServlet extends HttpServlet {
     private String optionValue(String value) {
         if (value == null) return "\"\"";
         return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+
+    private String findMysqldumpExecutable() {
+        String configured = System.getenv("MYSQLDUMP_PATH");
+        if (configured != null && !configured.isBlank() && new File(configured).isFile()) {
+            return configured;
+        }
+
+        String[] candidates = {
+            "C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysqldump.exe",
+            "C:\\Program Files\\MySQL\\MySQL Workbench 8.0\\mysqldump.exe",
+            "C:\\xampp\\mysql\\bin\\mysqldump.exe"
+        };
+        for (String candidate : candidates) {
+            if (new File(candidate).isFile()) {
+                return candidate;
+            }
+        }
+        return "mysqldump";
+    }
+
+    private String backupError(File errorFile) {
+        if (!errorFile.isFile() || errorFile.length() == 0) return "";
+        try {
+            String text = new String(java.nio.file.Files.readAllBytes(errorFile.toPath()), StandardCharsets.UTF_8).trim();
+            if (text.isEmpty()) return "";
+            return ": " + text.replaceAll("(?i)password\\s*=\\s*\\S+", "password=****");
+        } catch (IOException e) {
+            return "";
+        }
     }
 }
