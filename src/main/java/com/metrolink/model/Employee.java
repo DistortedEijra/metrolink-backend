@@ -12,8 +12,9 @@ public class Employee {
     private String        fullName;
     private LocalDate     birthdate;
     private String        address;
-    private String        position;       // DRIVER | CONDUCTOR
+    private String        position;
     private BigDecimal    dailyRate;
+    private BigDecimal    biMonthlyRate;
     @JsonProperty("isActive")
     private boolean       isActive;
     private LocalDateTime createdAt;
@@ -39,8 +40,11 @@ public class Employee {
     public String getPosition()               { return position; }
     public void setPosition(String v)         { this.position = v; }
 
-    public BigDecimal getDailyRate()          { return dailyRate; }
-    public void setDailyRate(BigDecimal v)    { this.dailyRate = v; }
+    public BigDecimal getDailyRate()              { return dailyRate; }
+    public void setDailyRate(BigDecimal v)        { this.dailyRate = v; }
+
+    public BigDecimal getBiMonthlyRate()          { return biMonthlyRate; }
+    public void setBiMonthlyRate(BigDecimal v)    { this.biMonthlyRate = v; }
 
     @JsonIgnore
     public boolean isActive()                 { return isActive; }

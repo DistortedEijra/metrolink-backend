@@ -61,7 +61,6 @@ public class EmployeeServlet extends HttpServlet {
             String birthdateStr = (String) body.get("birthdate");
             String address      = (String) body.get("address");
             String position     = (String) body.get("position");
-            BigDecimal dailyRate = new BigDecimal(body.getOrDefault("dailyRate", 1225.00).toString());
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
 
             if (employeeCode == null || fullName == null || position == null) {
@@ -70,7 +69,10 @@ public class EmployeeServlet extends HttpServlet {
             if (!Set.of("DRIVER","CONDUCTOR","HR","OPERATIONS","MECHANIC").contains(position)) {
                 ResponseUtil.error(res, 400, "Invalid position"); return;
             }
-            Employee created = dao.create(employeeCode, fullName, birthdate, address, position, dailyRate);
+            boolean isDaily = Set.of("DRIVER","CONDUCTOR").contains(position);
+            BigDecimal dailyRate     = isDaily ? new BigDecimal(body.getOrDefault("dailyRate",     1225.00).toString()) : null;
+            BigDecimal biMonthlyRate = isDaily ? null : new BigDecimal(body.getOrDefault("biMonthlyRate", 0).toString());
+            Employee created = dao.create(employeeCode, fullName, birthdate, address, position, dailyRate, biMonthlyRate);
             int userId = (int) req.getAttribute("userId");
             String username = (String) req.getAttribute("username");
             auditDAO.log(userId, username, "CREATE_EMPLOYEE", "EMPLOYEE", created.getId(), "code=" + employeeCode);
@@ -92,12 +94,14 @@ public class EmployeeServlet extends HttpServlet {
             String birthdateStr = (String) body.get("birthdate");
             String address      = (String) body.get("address");
             String position     = (String) body.get("position");
-            BigDecimal rate     = new BigDecimal(body.getOrDefault("dailyRate", 1225.00).toString());
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
             if (position != null && !Set.of("DRIVER","CONDUCTOR","HR","OPERATIONS","MECHANIC").contains(position)) {
                 ResponseUtil.error(res, 400, "Invalid position"); return;
             }
-            dao.update(id, fullName, birthdate, address, position, rate);
+            boolean isDaily = Set.of("DRIVER","CONDUCTOR").contains(position);
+            BigDecimal dailyRate     = isDaily ? new BigDecimal(body.getOrDefault("dailyRate",     1225.00).toString()) : null;
+            BigDecimal biMonthlyRate = isDaily ? null : new BigDecimal(body.getOrDefault("biMonthlyRate", 0).toString());
+            dao.update(id, fullName, birthdate, address, position, dailyRate, biMonthlyRate);
             int userId = (int) req.getAttribute("userId");
             String username = (String) req.getAttribute("username");
             auditDAO.log(userId, username, "UPDATE_EMPLOYEE", "EMPLOYEE", id, null);

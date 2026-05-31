@@ -46,9 +46,10 @@ public class EmployeeDAO {
     }
 
     public Employee create(String employeeCode, String fullName, LocalDate birthdate,
-                           String address, String position, BigDecimal dailyRate) throws SQLException {
-        String sql = "INSERT INTO employees (employee_code, full_name, birthdate, address, position, daily_rate) " +
-                     "VALUES (?, ?, ?, ?, ?, ?)";
+                           String address, String position,
+                           BigDecimal dailyRate, BigDecimal biMonthlyRate) throws SQLException {
+        String sql = "INSERT INTO employees (employee_code, full_name, birthdate, address, position, daily_rate, bi_monthly_rate) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, employeeCode);
@@ -56,7 +57,8 @@ public class EmployeeDAO {
             ps.setObject(3, birthdate);
             ps.setString(4, address);
             ps.setString(5, position);
-            ps.setBigDecimal(6, dailyRate);
+            if (dailyRate != null) ps.setBigDecimal(6, dailyRate); else ps.setNull(6, Types.DECIMAL);
+            if (biMonthlyRate != null) ps.setBigDecimal(7, biMonthlyRate); else ps.setNull(7, Types.DECIMAL);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) return findById(keys.getInt(1));
@@ -66,16 +68,18 @@ public class EmployeeDAO {
     }
 
     public boolean update(int id, String fullName, LocalDate birthdate,
-                          String address, String position, BigDecimal dailyRate) throws SQLException {
-        String sql = "UPDATE employees SET full_name=?, birthdate=?, address=?, position=?, daily_rate=? WHERE id=?";
+                          String address, String position,
+                          BigDecimal dailyRate, BigDecimal biMonthlyRate) throws SQLException {
+        String sql = "UPDATE employees SET full_name=?, birthdate=?, address=?, position=?, daily_rate=?, bi_monthly_rate=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, fullName);
             ps.setObject(2, birthdate);
             ps.setString(3, address);
             ps.setString(4, position);
-            ps.setBigDecimal(5, dailyRate);
-            ps.setInt(6, id);
+            if (dailyRate != null) ps.setBigDecimal(5, dailyRate); else ps.setNull(5, Types.DECIMAL);
+            if (biMonthlyRate != null) ps.setBigDecimal(6, biMonthlyRate); else ps.setNull(6, Types.DECIMAL);
+            ps.setInt(7, id);
             return ps.executeUpdate() > 0;
         }
     }
@@ -100,6 +104,7 @@ public class EmployeeDAO {
         e.setAddress(rs.getString("address"));
         e.setPosition(rs.getString("position"));
         e.setDailyRate(rs.getBigDecimal("daily_rate"));
+        e.setBiMonthlyRate(rs.getBigDecimal("bi_monthly_rate"));
         e.setActive(rs.getBoolean("is_active"));
         Timestamp ca = rs.getTimestamp("created_at");
         if (ca != null) e.setCreatedAt(ca.toLocalDateTime());
