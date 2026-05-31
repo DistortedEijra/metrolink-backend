@@ -63,9 +63,9 @@ const dash = v => v == null || v === '' ? '—' : v;
 // ── Navigate ───────────────────────────────────────────────
 function go(page) {
   if (!getToken() && page !== 'login') { renderLogin(); return; }
-  if (getToken() && page === 'login')  { go('trips'); return; }
+  if (getToken() && page === 'login')  { go('dashboard'); return; }
   currentPage = page;
-  const map = { login: renderLogin, trips: renderTrips, employees: renderEmployees,
+  const map = { login: renderLogin, dashboard: renderDashboard, trips: renderTrips, employees: renderEmployees,
                 buses: renderBuses, reports: renderReports, users: renderUsers, backup: renderBackup,
                 audit: renderAudit };
   (map[page] || (() => toast('Unknown page', 'warning')))();
@@ -75,10 +75,11 @@ function go(page) {
 function shell(activePage, content) {
   const user = getUser();
   const nav = [
-    { id: 'trips',     icon: 'fa-route',       label: 'Trip Management' },
-    { id: 'employees', icon: 'fa-users',        label: 'Employees' },
-    { id: 'buses',     icon: 'fa-bus',          label: 'Buses' },
-    { id: 'reports',   icon: 'fa-chart-bar',    label: 'Reports' },
+    { id: 'dashboard', icon: 'fa-th-large',     label: 'Dashboard' },
+    { id: 'trips',     icon: 'fa-route',        label: 'Trip Management' },
+    { id: 'employees', icon: 'fa-users',         label: 'Employees' },
+    { id: 'buses',     icon: 'fa-bus',           label: 'Buses' },
+    { id: 'reports',   icon: 'fa-chart-bar',     label: 'Reports' },
   ];
   if (isAdmin()) {
     nav.push({ id: 'users',  icon: 'fa-user-cog',   label: 'Staff Accounts' });
@@ -1488,9 +1489,146 @@ async function loadAuditLog() {
 }
 
 // ══════════════════════════════════════════════════════════
+// DASHBOARD
+// ══════════════════════════════════════════════════════════
+let _dashChart = null;
+
+async function renderDashboard() {
+  const user  = getUser();
+  const today = new Date().toISOString().split('T')[0];
+  const mtdStart = today.slice(0, 8) + '01';
+  const sevenAgo = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0];
+  const dateLabel = new Date().toLocaleDateString('en-PH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  shell('dashboard', `
+    <div class="page-header">
+      <div>
+        <h4><i class="fas fa-th-large me-2"></i>Dashboard</h4>
+        <div class="subtitle">${dateLabel}</div>
+      </div>
+    </div>
+    <div class="dash-welcome mb-3 d-flex align-items-center gap-3">
+      <div>
+        <div class="dash-name">Welcome back, ${user?.fullName || user?.username || 'User'}!</div>
+        <div class="dash-role"><i class="fas fa-id-badge me-1"></i>${user?.role || ''}</div>
+      </div>
+    </div>
+    <div class="row g-3 mb-3" id="dashStats">
+      <div class="col-6 col-md-3"><div class="stat-card blue"><div class="stat-label">Gross Income (MTD)</div><div class="stat-value" id="dGross">—</div><div class="dash-stat-trend neutral" id="dGrossTrend"></div></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card purple"><div class="stat-label">Total Trips (MTD)</div><div class="stat-value" id="dTrips">—</div><div class="dash-stat-trend neutral" id="dTripsTrend"></div></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card red"><div class="stat-label">Total Expenses (MTD)</div><div class="stat-value" id="dExp">—</div><div class="dash-stat-trend neutral" id="dExpTrend"></div></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card green"><div class="stat-label">Net Profit (MTD)</div><div class="stat-value" id="dProfit">—</div><div class="dash-stat-trend neutral" id="dProfitTrend"></div></div></div>
+    </div>
+    <div class="row g-3 mb-3">
+      <div class="col-md-7">
+        <div class="content-card p-3">
+          <div class="dash-section-label">Gross Income vs Net Profit — Last 7 Days</div>
+          <div class="dash-chart-wrap"><canvas id="dashChart"></canvas></div>
+        </div>
+      </div>
+      <div class="col-md-5">
+        <div class="content-card p-3" style="max-height:300px;overflow-y:auto">
+          <div class="dash-section-label">Today's Trips</div>
+          <div id="dashTodayTrips"><div class="text-muted small">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+    ${isAdmin() ? `
+    <div class="content-card p-3 mb-3">
+      <div class="dash-section-label">Recent Activity</div>
+      <div id="dashActivity"><div class="text-muted small">Loading…</div></div>
+    </div>` : ''}
+  `);
+
+  if (_dashChart) { _dashChart.destroy(); _dashChart = null; }
+
+  try {
+    const [summary, todayTrips, tripReport, auditLog] = await Promise.all([
+      api(`/reports/summary?from=${mtdStart}&to=${today}`),
+      api(`/trips/date?date=${today}`),
+      api(`/reports/trips?from=${sevenAgo}&to=${today}`),
+      isAdmin() ? api(`/audit?from=${sevenAgo}&to=${today}`) : Promise.resolve([])
+    ]);
+
+    // Stat cards
+    document.getElementById('dGross').textContent  = peso(summary.totalGrossIncome);
+    document.getElementById('dTrips').textContent  = summary.totalTrips ?? '0';
+    document.getElementById('dExp').textContent    = peso(summary.totalExpenses);
+    document.getElementById('dProfit').textContent = peso(summary.totalNetProfit);
+
+    // Chart — group trip report by date
+    const byDate = {};
+    (tripReport || []).forEach(r => {
+      const d = r.tripDate;
+      if (!byDate[d]) byDate[d] = { gross: 0, profit: 0 };
+      byDate[d].gross  += Number(r.grossIncome  || 0);
+      byDate[d].profit += Number(r.netProfit    || 0);
+    });
+    const labels  = [];
+    const grossArr = [], profitArr = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(Date.now() - i * 864e5).toISOString().split('T')[0];
+      labels.push(new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month:'short', day:'numeric' }));
+      grossArr.push(byDate[d]?.gross  || 0);
+      profitArr.push(byDate[d]?.profit || 0);
+    }
+    const ctx = document.getElementById('dashChart').getContext('2d');
+    _dashChart = new Chart(ctx, {
+      type: 'bar',
+      data: {
+        labels,
+        datasets: [
+          { label: 'Gross Income', data: grossArr,  backgroundColor: 'rgba(30,136,229,0.7)',  borderRadius: 4 },
+          { label: 'Net Profit',   data: profitArr, backgroundColor: 'rgba(67,160,71,0.7)',   borderRadius: 4 }
+        ]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
+        scales: { y: { ticks: { callback: v => '₱' + Number(v).toLocaleString('en-PH') } } }
+      }
+    });
+
+    // Today's trips
+    const todayEl = document.getElementById('dashTodayTrips');
+    if (todayEl) {
+      todayEl.innerHTML = !todayTrips.length
+        ? '<div class="text-muted small">No trips recorded today.</div>'
+        : todayTrips.map(t => `
+          <div class="dash-trip-row">
+            <span><strong>${t.busNumber}</strong> &nbsp;${t.driverName}</span>
+            <span class="text-muted">${t.dispatchTime ? t.dispatchTime.substring(0,5) : '—'}</span>
+          </div>`).join('');
+    }
+
+    // Recent activity (admin only)
+    const actEl = document.getElementById('dashActivity');
+    if (actEl) {
+      const last5 = (auditLog || []).slice(0, 5);
+      actEl.innerHTML = !last5.length
+        ? '<div class="text-muted small">No recent activity.</div>'
+        : last5.map(a => {
+            const actionBadge = a.action.startsWith('LOGIN')   ? 'bg-primary'
+                              : a.action.startsWith('CREATE')  ? 'bg-success'
+                              : a.action.startsWith('UPDATE')  ? 'bg-warning text-dark'
+                              : 'bg-danger';
+            return `<div class="dash-activity-row">
+              <span class="badge ${actionBadge}" style="font-size:0.65rem;min-width:90px">${a.action}</span>
+              <span>${a.username}</span>
+              <span class="text-muted ms-auto">${a.loggedAt ? new Date(a.loggedAt).toLocaleString('en-PH',{month:'short',day:'numeric',hour:'2-digit',minute:'2-digit'}) : ''}</span>
+            </div>`;
+          }).join('');
+    }
+
+  } catch (e) {
+    console.error('Dashboard error:', e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
 // BOOT
 // ══════════════════════════════════════════════════════════
 window.addEventListener('load', () => {
-  if (getToken()) go('trips');
+  if (getToken()) go('dashboard');
   else renderLogin();
 });
