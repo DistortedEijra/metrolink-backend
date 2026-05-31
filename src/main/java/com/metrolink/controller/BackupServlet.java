@@ -5,6 +5,7 @@ import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
@@ -39,25 +40,35 @@ public class BackupServlet extends HttpServlet {
             File backupDir = new File(System.getProperty("java.io.tmpdir"), "metrolink_backups");
             backupDir.mkdirs();
             File backupFile = new File(backupDir, filename);
+            File defaultsFile = File.createTempFile("metrolink_mysqldump_", ".cnf");
 
-            ProcessBuilder pb = new ProcessBuilder(
-                "mysqldump",
-                "-u" + dbUser,
-                "-p" + dbPass,
-                "--single-transaction",
-                "--routines",
-                "--triggers",
-                dbName
-            );
-            pb.redirectOutput(backupFile);
-            pb.redirectErrorStream(false);
+            try {
+                try (Writer writer = new OutputStreamWriter(new FileOutputStream(defaultsFile), StandardCharsets.UTF_8)) {
+                    writer.write("[client]\n");
+                    writer.write("user=" + optionValue(dbUser) + "\n");
+                    writer.write("password=" + optionValue(dbPass) + "\n");
+                }
 
-            Process process = pb.start();
-            int exitCode = process.waitFor();
+                ProcessBuilder pb = new ProcessBuilder(
+                    "mysqldump",
+                    "--defaults-extra-file=" + defaultsFile.getAbsolutePath(),
+                    "--single-transaction",
+                    "--routines",
+                    "--triggers",
+                    dbName
+                );
+                pb.redirectOutput(backupFile);
+                pb.redirectErrorStream(false);
 
-            if (exitCode != 0) {
-                ResponseUtil.error(res, 500, "Backup failed with exit code: " + exitCode);
-                return;
+                Process process = pb.start();
+                int exitCode = process.waitFor();
+
+                if (exitCode != 0) {
+                    ResponseUtil.error(res, 500, "Backup failed with exit code: " + exitCode);
+                    return;
+                }
+            } finally {
+                defaultsFile.delete();
             }
 
             // Stream the file as a download
@@ -94,5 +105,10 @@ public class BackupServlet extends HttpServlet {
             "format",  "SQL dump (mysqldump)",
             "database","metrolink_db"
         ));
+    }
+
+    private String optionValue(String value) {
+        if (value == null) return "\"\"";
+        return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
     }
 }
