@@ -7,17 +7,17 @@ const API = 'http://localhost:8080/metrolink-backend/api';
 let currentPage = 'trips';
 
 // ── Auth helpers ───────────────────────────────────────────
-const getToken  = () => sessionStorage.getItem('ml_token');
-const getUser   = () => JSON.parse(sessionStorage.getItem('ml_user') || 'null');
+const getToken  = () => localStorage.getItem('ml_token');
+const getUser   = () => JSON.parse(localStorage.getItem('ml_user') || 'null');
 const isAdmin   = () => getUser()?.role === 'ADMIN';
 
 function saveSession(data) {
-  sessionStorage.setItem('ml_token', data.token);
-  sessionStorage.setItem('ml_user', JSON.stringify(data));
+  localStorage.setItem('ml_token', data.token);
+  localStorage.setItem('ml_user', JSON.stringify(data));
 }
 function clearSession() {
-  sessionStorage.removeItem('ml_token');
-  sessionStorage.removeItem('ml_user');
+  localStorage.removeItem('ml_token');
+  localStorage.removeItem('ml_user');
 }
 
 // ── API wrapper ────────────────────────────────────────────
