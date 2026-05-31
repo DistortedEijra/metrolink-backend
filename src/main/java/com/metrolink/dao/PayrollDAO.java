@@ -9,66 +9,96 @@ import java.util.*;
 
 public class PayrollDAO {
 
+    private static final BigDecimal QUOTA      = new BigDecimal("13000");
+    private static final BigDecimal BONUS_STEP = new BigDecimal("1000");
+    private static final BigDecimal BONUS_RATE = new BigDecimal("100");
+
     public List<Map<String, Object>> computePayroll(LocalDate from, LocalDate to) throws SQLException {
-        String sql =
-            // Drivers
+        // Driver: base = daily_rate × distinct days driven
+        //         bonus = FLOOR(GREATEST(0, gross_income - 13000) / 1000) × 100 per trip
+        //         deductions = driver_bond + cash_advance
+        String driverSql =
             "SELECT e.id AS employee_id, e.full_name, e.employee_code, e.position, " +
-            "  COUNT(DISTINCT t.id) AS trip_count, " +
-            "  COALESCE(SUM(i.driver_income), 0) AS gross_pay, " +
-            "  COALESCE(SUM(i.driver_bond + COALESCE(ex.cash_advance,0)), 0) AS deductions, " +
-            "  COALESCE(SUM(i.driver_income - i.driver_bond - COALESCE(ex.cash_advance,0)), 0) AS net_pay " +
+            "  COUNT(DISTINCT t.id)   AS trip_count, " +
+            "  COUNT(DISTINCT t.trip_date) AS days_worked, " +
+            "  ROUND(e.daily_rate * COUNT(DISTINCT t.trip_date), 2) AS base_pay, " +
+            "  COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS bonus_pay, " +
+            "  ROUND(e.daily_rate * COUNT(DISTINCT t.trip_date), 2) + " +
+            "    COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS gross_pay, " +
+            "  COALESCE(SUM(i.driver_bond + COALESCE(ex.cash_advance, 0)), 0) AS deductions, " +
+            "  ROUND(e.daily_rate * COUNT(DISTINCT t.trip_date), 2) + " +
+            "    COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) - " +
+            "    COALESCE(SUM(i.driver_bond + COALESCE(ex.cash_advance, 0)), 0) AS net_pay " +
             "FROM employees e " +
             "JOIN trips t ON t.driver_id = e.id AND t.trip_date BETWEEN ? AND ? " +
             "JOIN income i ON i.trip_id = t.id " +
             "LEFT JOIN expenses ex ON ex.trip_id = t.id " +
             "WHERE e.position = 'DRIVER' " +
-            "GROUP BY e.id, e.full_name, e.employee_code, e.position " +
+            "GROUP BY e.id, e.full_name, e.employee_code, e.position, e.daily_rate";
 
-            "UNION ALL " +
-
-            // Conductors
-            "SELECT e.id, e.full_name, e.employee_code, e.position, " +
-            "  COUNT(DISTINCT t.id), " +
-            "  COALESCE(SUM(i.conductor_income), 0), " +
-            "  COALESCE(SUM(i.conductor_bond), 0), " +
-            "  COALESCE(SUM(i.conductor_income - i.conductor_bond), 0) " +
+        // Conductor: same formula, uses conductor_bond (no cash_advance deduction)
+        String conductorSql =
+            "SELECT e.id AS employee_id, e.full_name, e.employee_code, e.position, " +
+            "  COUNT(DISTINCT t.id)   AS trip_count, " +
+            "  COUNT(DISTINCT t.trip_date) AS days_worked, " +
+            "  ROUND(e.daily_rate * COUNT(DISTINCT t.trip_date), 2) AS base_pay, " +
+            "  COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS bonus_pay, " +
+            "  ROUND(e.daily_rate * COUNT(DISTINCT t.trip_date), 2) + " +
+            "    COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS gross_pay, " +
+            "  COALESCE(SUM(i.conductor_bond), 0) AS deductions, " +
+            "  ROUND(e.daily_rate * COUNT(DISTINCT t.trip_date), 2) + " +
+            "    COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) - " +
+            "    COALESCE(SUM(i.conductor_bond), 0) AS net_pay " +
             "FROM employees e " +
             "JOIN trips t ON t.conductor_id = e.id AND t.trip_date BETWEEN ? AND ? " +
             "JOIN income i ON i.trip_id = t.id " +
             "WHERE e.position = 'CONDUCTOR' " +
-            "GROUP BY e.id, e.full_name, e.employee_code, e.position " +
+            "GROUP BY e.id, e.full_name, e.employee_code, e.position, e.daily_rate";
 
-            "UNION ALL " +
-
-            // Fixed staff (HR / OPERATIONS / MECHANIC)
-            "SELECT e.id, e.full_name, e.employee_code, e.position, " +
-            "  0, e.bi_monthly_rate, 0, e.bi_monthly_rate " +
+        // Fixed staff: bi_monthly_rate, no trip dependency
+        String fixedSql =
+            "SELECT e.id AS employee_id, e.full_name, e.employee_code, e.position, " +
+            "  0 AS trip_count, 0 AS days_worked, " +
+            "  e.bi_monthly_rate AS base_pay, 0 AS bonus_pay, " +
+            "  e.bi_monthly_rate AS gross_pay, 0 AS deductions, e.bi_monthly_rate AS net_pay " +
             "FROM employees e " +
-            "WHERE e.position IN ('HR','OPERATIONS','MECHANIC') AND e.is_active = TRUE " +
-
-            "ORDER BY position, full_name";
+            "WHERE e.position IN ('HR','OPERATIONS','MECHANIC') AND e.is_active = TRUE";
 
         List<Map<String, Object>> rows = new ArrayList<>();
-        try (Connection c = DatabaseConfig.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setDate(1, java.sql.Date.valueOf(from));
-            ps.setDate(2, java.sql.Date.valueOf(to));
-            ps.setDate(3, java.sql.Date.valueOf(from));
-            ps.setDate(4, java.sql.Date.valueOf(to));
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("employeeId",   rs.getInt("employee_id"));
-                    row.put("fullName",     rs.getString("full_name"));
-                    row.put("employeeCode", rs.getString("employee_code"));
-                    row.put("position",     rs.getString("position"));
-                    row.put("tripCount",    rs.getInt("trip_count"));
-                    row.put("grossPay",     rs.getBigDecimal("gross_pay"));
-                    row.put("deductions",   rs.getBigDecimal("deductions"));
-                    row.put("netPay",       rs.getBigDecimal("net_pay"));
-                    rows.add(row);
+        try (Connection c = DatabaseConfig.getConnection()) {
+            for (String[] pair : new String[][]{ {driverSql, "DRIVER"}, {conductorSql, "CONDUCTOR"} }) {
+                try (PreparedStatement ps = c.prepareStatement(pair[0])) {
+                    ps.setDate(1, java.sql.Date.valueOf(from));
+                    ps.setDate(2, java.sql.Date.valueOf(to));
+                    rows.addAll(readPayrollRows(ps.executeQuery()));
                 }
             }
+            try (Statement st = c.createStatement();
+                 ResultSet rs = st.executeQuery(fixedSql)) {
+                rows.addAll(readPayrollRows(rs));
+            }
+        }
+        rows.sort(Comparator.comparing((Map<String, Object> r) -> (String) r.get("position"))
+                            .thenComparing(r -> (String) r.get("fullName")));
+        return rows;
+    }
+
+    private List<Map<String, Object>> readPayrollRows(ResultSet rs) throws SQLException {
+        List<Map<String, Object>> rows = new ArrayList<>();
+        while (rs.next()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("employeeId",   rs.getInt("employee_id"));
+            row.put("fullName",     rs.getString("full_name"));
+            row.put("employeeCode", rs.getString("employee_code"));
+            row.put("position",     rs.getString("position"));
+            row.put("tripCount",    rs.getInt("trip_count"));
+            row.put("daysWorked",   rs.getInt("days_worked"));
+            row.put("basePay",      rs.getBigDecimal("base_pay"));
+            row.put("bonusPay",     rs.getBigDecimal("bonus_pay"));
+            row.put("grossPay",     rs.getBigDecimal("gross_pay"));
+            row.put("deductions",   rs.getBigDecimal("deductions"));
+            row.put("netPay",       rs.getBigDecimal("net_pay"));
+            rows.add(row);
         }
         return rows;
     }
@@ -127,7 +157,6 @@ public class PayrollDAO {
     public int generatePayroll(LocalDate from, LocalDate to, int createdBy) throws SQLException {
         List<Map<String, Object>> computed = computePayroll(from, to);
 
-        // Remove employees already recorded for this exact period
         String checkSql = "SELECT employee_id FROM payroll_records WHERE period_start=? AND period_end=?";
         Set<Integer> existing = new HashSet<>();
         try (Connection c = DatabaseConfig.getConnection();

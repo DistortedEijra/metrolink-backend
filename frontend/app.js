@@ -310,7 +310,7 @@ function getTripModal() {
                 <label class="form-label">Gross Income *</label>
                 <div class="input-group">
                   <span class="input-group-text">₱</span>
-                  <input type="number" id="iGross" class="form-control" min="0" step="0.01" placeholder="0.00" oninput="calcNet()">
+                  <input type="number" id="iGross" class="form-control" min="0" step="0.01" placeholder="0.00" oninput="calcNet();calcBonus()">
                 </div>
               </div>
               <div class="col-md-4">
@@ -353,6 +353,7 @@ function getTripModal() {
                   <div class="net-label">Net Income (Gross − Bond − Commission)</div>
                   <div class="net-value" id="netDisplay">₱0.00</div>
                 </div>
+                <div id="bonusPreview" class="mt-2 small text-muted"></div>
               </div>
             </div>
           </div>
@@ -564,6 +565,17 @@ function calcNet() {
   document.getElementById('netDisplay').textContent = peso(g - db - cb - c);
 }
 
+function calcBonus() {
+  const gross = +document.getElementById('iGross').value || 0;
+  const units = Math.max(0, Math.floor((gross - 13000) / 1000));
+  const bonus = units * 100;
+  const el = document.getElementById('bonusPreview');
+  if (!el) return;
+  el.innerHTML = units > 0
+    ? `<i class="fas fa-star text-warning me-1"></i><strong class="text-success">Quota bonus: +₱${bonus} each</strong> — driver &amp; conductor (${units} unit${units > 1 ? 's' : ''} × ₱100)`
+    : `<i class="fas fa-info-circle me-1"></i>No quota bonus — gross below ₱13,000 threshold`;
+}
+
 function calcTotal() {
   const ids = ['eDiesel','eWashing','eSalary','eOT','eNight','eBonus','eCash','eDamage','eOther'];
   const total = ids.reduce((s, id) => s + (+document.getElementById(id).value || 0), 0);
@@ -620,7 +632,8 @@ async function openIncomeExp(tripId, busNum, tripDate) {
         <div class="section-header"><i class="fas fa-arrow-down me-1"></i>Income</div>
         <div class="mb-2"><label class="form-label">Gross Income</label>
           <div class="input-group"><span class="input-group-text">₱</span>
-          <input type="number" id="ie_gross" class="form-control" value="${v(inc,'grossIncome')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
+          <input type="number" id="ie_gross" class="form-control" value="${v(inc,'grossIncome')}" min="0" step="0.01" oninput="ieCalcNet();ieCalcBonus()"></div></div>
+        <div id="ie_bonusPreview" class="small text-muted mb-1"></div>
         <div class="mb-2"><label class="form-label">Driver Income</label>
           <div class="input-group"><span class="input-group-text">₱</span>
           <input type="number" id="ie_dinc" class="form-control" value="${v(inc,'driverIncome')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
@@ -669,6 +682,8 @@ async function openIncomeExp(tripId, busNum, tripDate) {
         </div>
       </div>
     </div>`;
+  // Show bonus preview for loaded income
+  setTimeout(ieCalcBonus, 0);
 }
 
 function ieCalcNet() {
@@ -677,6 +692,17 @@ function ieCalcNet() {
   const cb = +document.getElementById('ie_cbond').value || 0;
   const c  = +document.getElementById('ie_comm').value || 0;
   document.getElementById('ie_net').textContent = peso(g - db - cb - c);
+}
+
+function ieCalcBonus() {
+  const gross = +document.getElementById('ie_gross').value || 0;
+  const units = Math.max(0, Math.floor((gross - 13000) / 1000));
+  const bonus = units * 100;
+  const el = document.getElementById('ie_bonusPreview');
+  if (!el) return;
+  el.innerHTML = units > 0
+    ? `<i class="fas fa-star text-warning me-1"></i><strong class="text-success">Quota bonus: +₱${bonus} each</strong> (${units} unit${units > 1 ? 's' : ''} × ₱100)`
+    : `<i class="fas fa-info-circle me-1"></i>No quota bonus — below ₱13,000`;
 }
 
 function ieCalcTotal() {
@@ -1743,8 +1769,8 @@ async function loadFinancePayroll() {
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <thead><tr>
-            <th>Code</th><th>Employee</th><th>Position</th><th>Trips</th>
-            <th>Gross Pay</th><th>Deductions</th><th>Net Pay</th>
+            <th>Code</th><th>Employee</th><th>Position</th><th>Days</th><th>Trips</th>
+            <th>Base Pay</th><th>Bonus</th><th>Gross Pay</th><th>Deductions</th><th>Net Pay</th>
             <th>Status</th><th></th>
           </tr></thead>
           <tbody>
@@ -1760,11 +1786,15 @@ async function loadFinancePayroll() {
               const actionBtn = (isRecord && status === 'PENDING')
                 ? `<button class="btn btn-success btn-sm btn-icon" onclick="markPayrollPaid(${r.id})" title="Mark as Paid"><i class="fas fa-check"></i></button>`
                 : '';
+              const isOperational = ['DRIVER','CONDUCTOR'].includes(r.position);
               return `<tr>
                 <td><code>${r.employeeCode}</code></td>
                 <td><strong>${r.fullName}</strong></td>
                 <td><span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[r.position]||''}">${r.position}</span></td>
-                <td class="text-center">${r.tripCount || 0}</td>
+                <td class="text-center">${isOperational ? (r.daysWorked || 0) : '—'}</td>
+                <td class="text-center">${isOperational ? (r.tripCount || 0) : '—'}</td>
+                <td>${peso(r.basePay)}</td>
+                <td class="text-success">${Number(r.bonusPay||0) > 0 ? '+' + peso(r.bonusPay) : '—'}</td>
                 <td>${peso(r.grossPay)}</td>
                 <td class="text-danger">${Number(r.deductions||0) > 0 ? '−' + peso(r.deductions) : '—'}</td>
                 <td><strong>${peso(r.netPay)}</strong></td>
