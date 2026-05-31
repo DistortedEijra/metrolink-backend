@@ -1656,7 +1656,7 @@ async function renderDashboard() {
 // FINANCE MANAGEMENT
 // ══════════════════════════════════════════════════════════
 let _financePeriod = null;
-let _financeTab    = 'payroll';
+let _financeTab    = 'daily';
 
 const MONTH_NAMES = ['January','February','March','April','May','June',
                      'July','August','September','October','November','December'];
@@ -1699,8 +1699,11 @@ async function renderFinance() {
 
     <div class="content-card mb-3">
       <div style="border-bottom:1px solid #f0f0f0; padding:0 1rem;">
-        <button class="finance-tab-btn ${_financeTab==='payroll'?'active':''}" onclick="switchFinanceTab('payroll')">
-          <i class="fas fa-users me-1"></i>Payroll
+        <button class="finance-tab-btn ${_financeTab==='daily'?'active':''}" onclick="switchFinanceTab('daily')">
+          <i class="fas fa-calendar-day me-1"></i>Daily Payroll
+        </button>
+        <button class="finance-tab-btn ${_financeTab==='bimonthly'?'active':''}" onclick="switchFinanceTab('bimonthly')">
+          <i class="fas fa-calendar-alt me-1"></i>Bi-Monthly
         </button>
         <button class="finance-tab-btn ${_financeTab==='treasury'?'active':''}" onclick="switchFinanceTab('treasury')">
           <i class="fas fa-landmark me-1"></i>Company Treasury
@@ -1710,7 +1713,8 @@ async function renderFinance() {
     </div>
   `);
 
-  if (_financeTab === 'payroll') loadFinancePayroll();
+  if (_financeTab === 'daily')          loadDailyPayroll();
+  else if (_financeTab === 'bimonthly') loadBiMonthlyPayroll();
   else loadFinanceTreasury();
 }
 
@@ -1720,37 +1724,57 @@ function shiftFinancePeriod(delta) {
   _financePeriod = getBiMonthlyPeriod(_finOffset);
   const lbl = document.getElementById('finPeriodLabel');
   if (lbl) lbl.textContent = _financePeriod.label;
-  if (_financeTab === 'payroll') loadFinancePayroll();
+  if (_financeTab === 'daily')          loadDailyPayroll();
+  else if (_financeTab === 'bimonthly') loadBiMonthlyPayroll();
   else loadFinanceTreasury();
 }
 
 function switchFinanceTab(tab) {
   _financeTab = tab;
   document.querySelectorAll('.finance-tab-btn').forEach(b => b.classList.remove('active'));
+  // Mark the clicked button active
   document.querySelectorAll('.finance-tab-btn').forEach(b => {
-    if (b.textContent.toLowerCase().includes(tab === 'payroll' ? 'payroll' : 'treasury')) b.classList.add('active');
+    const t = b.getAttribute('onclick')?.match(/'(\w+)'/)?.[1];
+    if (t === tab) b.classList.add('active');
   });
-  if (tab === 'payroll') loadFinancePayroll();
+  if (tab === 'daily')          loadDailyPayroll();
+  else if (tab === 'bimonthly') loadBiMonthlyPayroll();
   else loadFinanceTreasury();
 }
 
-async function loadFinancePayroll() {
+// ── Shared payroll row builder ────────────────────────────
+function _payrollBadge(r, hasRecords) {
+  const status = hasRecords ? r.status : 'PREVIEW';
+  if (status === 'PAID')
+    return `<span class="payroll-paid">PAID<br><small>${r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-PH') : ''}</small></span>`;
+  if (status === 'PENDING')
+    return `<span class="payroll-pending">PENDING</span>`;
+  return `<span class="text-muted small">Preview</span>`;
+}
+function _payrollActionBtn(r, hasRecords) {
+  return (hasRecords && r.status === 'PENDING')
+    ? `<button class="btn btn-success btn-sm btn-icon" onclick="markPayrollPaid(${r.id})" title="Mark as Paid"><i class="fas fa-check"></i></button>`
+    : '';
+}
+const _posBadge = p => `<span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[p]||''}">${p}</span>`;
+
+// ── Daily Payroll tab (Drivers & Conductors) ─────────────
+async function loadDailyPayroll() {
   const { from, to } = _financePeriod;
   const el = document.getElementById('financeContent');
   if (!el) return;
-  el.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading payroll…</div>';
-
+  el.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
   try {
-    const [records, computed] = await Promise.all([
+    const [allRec, allComp] = await Promise.all([
       api(`/payroll/records?from=${from}&to=${to}`),
       api(`/payroll/compute?from=${from}&to=${to}`)
     ]);
-
-    const hasRecords  = records.length > 0;
-    const totalNet    = computed.reduce((s, r) => s + Number(r.netPay || 0), 0);
-    const paidCount   = records.filter(r => r.status === 'PAID').length;
-
-    const rowData = hasRecords ? records : computed;
+    const records  = allRec.filter(r => r.tripDate != null);
+    const computed = allComp.filter(r => r.tripDate != null);
+    const hasRecords = records.length > 0;
+    const rowData  = hasRecords ? records : computed;
+    const totalNet = rowData.reduce((s, r) => s + Number(r.netPay || 0), 0);
+    const paidCount = records.filter(r => r.status === 'PAID').length;
 
     el.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
@@ -1759,63 +1783,107 @@ async function loadFinancePayroll() {
             ? `<span class="badge bg-secondary">${records.length} records</span> &nbsp; <span class="badge bg-success">${paidCount} paid</span> &nbsp; <span class="badge bg-warning text-dark">${records.length - paidCount} pending</span>`
             : `<span class="badge bg-light text-dark border">Preview — not yet generated</span>`}
         </div>
-        <div class="d-flex gap-2">
-          <span class="fw-bold">Total Payroll: ${peso(totalNet)}</span>
-          ${!hasRecords
-            ? `<button class="btn btn-primary btn-sm" onclick="generatePayroll('${from}','${to}')"><i class="fas fa-cogs me-1"></i>Generate Payroll</button>`
-            : `<button class="btn btn-outline-secondary btn-sm" onclick="generatePayroll('${from}','${to}')"><i class="fas fa-sync me-1"></i>Add Missing</button>`}
+        <div class="d-flex gap-2 align-items-center">
+          <span class="fw-bold">Total: ${peso(totalNet)}</span>
+          <button class="btn ${hasRecords ? 'btn-outline-secondary' : 'btn-primary'} btn-sm" onclick="generatePayroll('${from}','${to}','daily')">
+            <i class="fas fa-${hasRecords ? 'sync' : 'cogs'} me-1"></i>${hasRecords ? 'Add Missing' : 'Generate Daily Payroll'}
+          </button>
         </div>
       </div>
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <thead><tr>
             <th>Date</th><th>Code</th><th>Employee</th><th>Position</th>
-            <th>Base Pay</th><th>Bonus</th><th>Gross Pay</th><th>Deductions</th><th>Net Pay</th>
+            <th>Base (₱1,225)</th><th>Bonus</th><th>Gross</th><th>Deductions</th><th>Net Pay</th>
             <th>Status</th><th></th>
           </tr></thead>
           <tbody>
             ${rowData.map(r => {
-              const isRecord = hasRecords;
-              const status   = isRecord ? r.status : 'PREVIEW';
-              const badgeCls = status === 'PAID' ? 'payroll-paid' : status === 'PENDING' ? 'payroll-pending' : 'text-muted small';
-              const badgeTxt = status === 'PAID'
-                ? `<span class="payroll-paid">PAID<br><small>${r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-PH') : ''}</small></span>`
-                : status === 'PENDING'
-                  ? `<span class="payroll-pending">PENDING</span>`
-                  : `<span class="text-muted small">—</span>`;
-              const actionBtn = (isRecord && status === 'PENDING')
-                ? `<button class="btn btn-success btn-sm btn-icon" onclick="markPayrollPaid(${r.id})" title="Mark as Paid"><i class="fas fa-check"></i></button>`
-                : '';
-              const dateStr = r.tripDate
-                ? new Date(r.tripDate + 'T00:00:00').toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'})
-                : '—';
+              const dateStr = new Date(r.tripDate + 'T00:00:00').toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'});
               return `<tr>
-                <td class="text-nowrap small">${dateStr}</td>
+                <td class="text-nowrap small fw-semibold">${dateStr}</td>
                 <td><code>${r.employeeCode}</code></td>
-                <td><strong>${r.fullName}</strong></td>
-                <td><span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[r.position]||''}">${r.position}</span></td>
+                <td>${r.fullName}</td>
+                <td>${_posBadge(r.position)}</td>
                 <td>${peso(r.basePay)}</td>
-                <td class="text-success">${Number(r.bonusPay||0) > 0 ? '+' + peso(r.bonusPay) : '—'}</td>
+                <td class="text-success">${Number(r.bonusPay||0) > 0 ? '+'+peso(r.bonusPay) : '—'}</td>
                 <td>${peso(r.grossPay)}</td>
-                <td class="text-danger">${Number(r.deductions||0) > 0 ? '−' + peso(r.deductions) : '—'}</td>
+                <td class="text-danger">${Number(r.deductions||0) > 0 ? '−'+peso(r.deductions) : '—'}</td>
                 <td><strong>${peso(r.netPay)}</strong></td>
-                <td>${badgeTxt}</td>
-                <td>${actionBtn}</td>
+                <td>${_payrollBadge(r, hasRecords)}</td>
+                <td>${_payrollActionBtn(r, hasRecords)}</td>
               </tr>`;
             }).join('')}
           </tbody>
         </table>
       </div>`;
   } catch {
-    el.innerHTML = '<div class="alert alert-danger">Failed to load payroll data.</div>';
+    el.innerHTML = '<div class="alert alert-danger">Failed to load daily payroll.</div>';
   }
 }
 
-async function generatePayroll(from, to) {
+// ── Bi-Monthly Payroll tab (HR / Operations / Mechanic) ──
+async function loadBiMonthlyPayroll() {
+  const { from, to } = _financePeriod;
+  const el = document.getElementById('financeContent');
+  if (!el) return;
+  el.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
+  try {
+    const [allRec, allComp] = await Promise.all([
+      api(`/payroll/records?from=${from}&to=${to}`),
+      api(`/payroll/compute?from=${from}&to=${to}`)
+    ]);
+    const records  = allRec.filter(r => r.tripDate == null);
+    const computed = allComp.filter(r => r.tripDate == null);
+    const hasRecords = records.length > 0;
+    const rowData  = hasRecords ? records : computed;
+    const totalNet = rowData.reduce((s, r) => s + Number(r.netPay || 0), 0);
+    const paidCount = records.filter(r => r.status === 'PAID').length;
+
+    el.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="text-muted small">
+          ${hasRecords
+            ? `<span class="badge bg-secondary">${records.length} records</span> &nbsp; <span class="badge bg-success">${paidCount} paid</span> &nbsp; <span class="badge bg-warning text-dark">${records.length - paidCount} pending</span>`
+            : `<span class="badge bg-light text-dark border">Preview — not yet generated</span>`}
+        </div>
+        <div class="d-flex gap-2 align-items-center">
+          <span class="fw-bold">Total: ${peso(totalNet)}</span>
+          <button class="btn ${hasRecords ? 'btn-outline-secondary' : 'btn-primary'} btn-sm" onclick="generatePayroll('${from}','${to}','bimonthly')">
+            <i class="fas fa-${hasRecords ? 'sync' : 'cogs'} me-1"></i>${hasRecords ? 'Add Missing' : 'Generate Bi-Monthly Payroll'}
+          </button>
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr>
+            <th>Code</th><th>Employee</th><th>Position</th>
+            <th>Gross Pay</th><th>Net Pay</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${rowData.map(r => `<tr>
+              <td><code>${r.employeeCode}</code></td>
+              <td>${r.fullName}</td>
+              <td>${_posBadge(r.position)}</td>
+              <td>${peso(r.grossPay)}</td>
+              <td><strong>${peso(r.netPay)}</strong></td>
+              <td>${_payrollBadge(r, hasRecords)}</td>
+              <td>${_payrollActionBtn(r, hasRecords)}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch {
+    el.innerHTML = '<div class="alert alert-danger">Failed to load bi-monthly payroll.</div>';
+  }
+}
+
+async function generatePayroll(from, to, type) {
   try {
     const r = await api('/payroll/generate', 'POST', { from, to });
-    toast(`Payroll generated — ${r.generated} record(s) created`);
-    loadFinancePayroll();
+    toast(`${r.generated} record(s) generated`);
+    if (type === 'bimonthly') loadBiMonthlyPayroll();
+    else loadDailyPayroll();
   } catch {}
 }
 
@@ -1823,7 +1891,8 @@ async function markPayrollPaid(id) {
   try {
     await api(`/payroll/${id}/pay`, 'PATCH');
     toast('Marked as paid');
-    loadFinancePayroll();
+    if (_financeTab === 'bimonthly') loadBiMonthlyPayroll();
+    else loadDailyPayroll();
   } catch {}
 }
 
