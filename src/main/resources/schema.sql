@@ -147,6 +147,27 @@ CREATE TABLE IF NOT EXISTS audit_logs (
 );
 
 -- ============================================================
+-- PAYROLL RECORDS TABLE (bi-monthly payroll tracking)
+-- ============================================================
+CREATE TABLE IF NOT EXISTS payroll_records (
+    id           INT AUTO_INCREMENT PRIMARY KEY,
+    period_start DATE          NOT NULL,
+    period_end   DATE          NOT NULL,
+    employee_id  INT           NOT NULL,
+    gross_pay    DECIMAL(12,2) NOT NULL,
+    deductions   DECIMAL(12,2) NOT NULL DEFAULT 0.00,
+    net_pay      DECIMAL(12,2) NOT NULL,
+    trip_count   INT           NOT NULL DEFAULT 0,
+    status       ENUM('PENDING','PAID') NOT NULL DEFAULT 'PENDING',
+    paid_at      DATETIME      NULL,
+    paid_by      INT           NULL,
+    notes        TEXT          NULL,
+    created_at   DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (employee_id) REFERENCES employees(id),
+    FOREIGN KEY (paid_by)     REFERENCES users(id)
+);
+
+-- ============================================================
 -- INDEXES for Binary Search on date-based queries
 -- ============================================================
 CREATE INDEX idx_trips_date        ON trips(trip_date);

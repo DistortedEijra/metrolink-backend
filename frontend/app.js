@@ -66,8 +66,8 @@ function go(page) {
   if (getToken() && page === 'login')  { go('dashboard'); return; }
   currentPage = page;
   const map = { login: renderLogin, dashboard: renderDashboard, trips: renderTrips, employees: renderEmployees,
-                buses: renderBuses, reports: renderReports, users: renderUsers, backup: renderBackup,
-                audit: renderAudit };
+                buses: renderBuses, reports: renderReports, finance: renderFinance, users: renderUsers,
+                backup: renderBackup, audit: renderAudit };
   (map[page] || (() => toast('Unknown page', 'warning')))();
 }
 
@@ -82,9 +82,10 @@ function shell(activePage, content) {
     { id: 'reports',   icon: 'fa-chart-bar',     label: 'Reports' },
   ];
   if (isAdmin()) {
-    nav.push({ id: 'users',  icon: 'fa-user-cog',   label: 'Staff Accounts' });
-    nav.push({ id: 'audit',  icon: 'fa-clipboard-list', label: 'Audit Log' });
-    nav.push({ id: 'backup', icon: 'fa-database',   label: 'Backup' });
+    nav.push({ id: 'finance', icon: 'fa-money-bill-wave',  label: 'Finance' });
+    nav.push({ id: 'users',   icon: 'fa-user-cog',         label: 'Staff Accounts' });
+    nav.push({ id: 'audit',   icon: 'fa-clipboard-list',   label: 'Audit Log' });
+    nav.push({ id: 'backup',  icon: 'fa-database',         label: 'Backup' });
   }
 
   const navHtml = nav.map(n => `
@@ -1622,6 +1623,218 @@ async function renderDashboard() {
 
   } catch (e) {
     console.error('Dashboard error:', e);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// FINANCE MANAGEMENT
+// ══════════════════════════════════════════════════════════
+let _financePeriod = null;
+let _financeTab    = 'payroll';
+
+const MONTH_NAMES = ['January','February','March','April','May','June',
+                     'July','August','September','October','November','December'];
+
+function getBiMonthlyPeriod(offset = 0) {
+  const now = new Date();
+  let year  = now.getFullYear();
+  let month = now.getMonth();  // 0-based
+  // each month has 2 periods; offset moves by half-months
+  let halfIndex = (year * 24 + month * 2 + (now.getDate() > 15 ? 1 : 0)) + offset;
+  year  = Math.floor(halfIndex / 24);
+  month = Math.floor((halfIndex % 24) / 2);
+  const isSecond = (halfIndex % 2 === 1);
+  const pad = n => String(n).padStart(2,'0');
+  const lastDay = new Date(year, month + 1, 0).getDate();
+  const from    = isSecond ? `${year}-${pad(month+1)}-16` : `${year}-${pad(month+1)}-01`;
+  const to      = isSecond ? `${year}-${pad(month+1)}-${lastDay}` : `${year}-${pad(month+1)}-15`;
+  const label   = isSecond
+    ? `${MONTH_NAMES[month]} 16–${lastDay}, ${year}`
+    : `${MONTH_NAMES[month]} 1–15, ${year}`;
+  return { from, to, label, offset: halfIndex };
+}
+
+async function renderFinance() {
+  if (!isAdmin()) { go('trips'); return; }
+  _financePeriod = getBiMonthlyPeriod(_finOffset);
+
+  shell('finance', `
+    <div class="page-header d-flex justify-content-between align-items-center flex-wrap gap-2">
+      <div>
+        <h4><i class="fas fa-money-bill-wave me-2"></i>Finance Management</h4>
+        <div class="subtitle">Bi-monthly payroll &amp; company treasury</div>
+      </div>
+      <div class="period-nav">
+        <button onclick="shiftFinancePeriod(-1)" title="Previous period"><i class="fas fa-chevron-left"></i></button>
+        <strong id="finPeriodLabel">${_financePeriod.label}</strong>
+        <button onclick="shiftFinancePeriod(1)" title="Next period"><i class="fas fa-chevron-right"></i></button>
+      </div>
+    </div>
+
+    <div class="content-card mb-3">
+      <div style="border-bottom:1px solid #f0f0f0; padding:0 1rem;">
+        <button class="finance-tab-btn ${_financeTab==='payroll'?'active':''}" onclick="switchFinanceTab('payroll')">
+          <i class="fas fa-users me-1"></i>Payroll
+        </button>
+        <button class="finance-tab-btn ${_financeTab==='treasury'?'active':''}" onclick="switchFinanceTab('treasury')">
+          <i class="fas fa-landmark me-1"></i>Company Treasury
+        </button>
+      </div>
+      <div id="financeContent" class="p-3"></div>
+    </div>
+  `);
+
+  if (_financeTab === 'payroll') loadFinancePayroll();
+  else loadFinanceTreasury();
+}
+
+let _finOffset = 0;
+function shiftFinancePeriod(delta) {
+  _finOffset += delta;
+  _financePeriod = getBiMonthlyPeriod(_finOffset);
+  const lbl = document.getElementById('finPeriodLabel');
+  if (lbl) lbl.textContent = _financePeriod.label;
+  if (_financeTab === 'payroll') loadFinancePayroll();
+  else loadFinanceTreasury();
+}
+
+function switchFinanceTab(tab) {
+  _financeTab = tab;
+  document.querySelectorAll('.finance-tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.finance-tab-btn').forEach(b => {
+    if (b.textContent.toLowerCase().includes(tab === 'payroll' ? 'payroll' : 'treasury')) b.classList.add('active');
+  });
+  if (tab === 'payroll') loadFinancePayroll();
+  else loadFinanceTreasury();
+}
+
+async function loadFinancePayroll() {
+  const { from, to } = _financePeriod;
+  const el = document.getElementById('financeContent');
+  if (!el) return;
+  el.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading payroll…</div>';
+
+  try {
+    const [records, computed] = await Promise.all([
+      api(`/payroll/records?from=${from}&to=${to}`),
+      api(`/payroll/compute?from=${from}&to=${to}`)
+    ]);
+
+    const hasRecords  = records.length > 0;
+    const totalNet    = computed.reduce((s, r) => s + Number(r.netPay || 0), 0);
+    const paidCount   = records.filter(r => r.status === 'PAID').length;
+
+    const rowData = hasRecords ? records : computed;
+
+    el.innerHTML = `
+      <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
+        <div class="text-muted small">
+          ${hasRecords
+            ? `<span class="badge bg-secondary">${records.length} records</span> &nbsp; <span class="badge bg-success">${paidCount} paid</span> &nbsp; <span class="badge bg-warning text-dark">${records.length - paidCount} pending</span>`
+            : `<span class="badge bg-light text-dark border">Preview — not yet generated</span>`}
+        </div>
+        <div class="d-flex gap-2">
+          <span class="fw-bold">Total Payroll: ${peso(totalNet)}</span>
+          ${!hasRecords
+            ? `<button class="btn btn-primary btn-sm" onclick="generatePayroll('${from}','${to}')"><i class="fas fa-cogs me-1"></i>Generate Payroll</button>`
+            : `<button class="btn btn-outline-secondary btn-sm" onclick="generatePayroll('${from}','${to}')"><i class="fas fa-sync me-1"></i>Add Missing</button>`}
+        </div>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead><tr>
+            <th>Code</th><th>Employee</th><th>Position</th><th>Trips</th>
+            <th>Gross Pay</th><th>Deductions</th><th>Net Pay</th>
+            <th>Status</th><th></th>
+          </tr></thead>
+          <tbody>
+            ${rowData.map(r => {
+              const isRecord = hasRecords;
+              const status   = isRecord ? r.status : 'PREVIEW';
+              const badgeCls = status === 'PAID' ? 'payroll-paid' : status === 'PENDING' ? 'payroll-pending' : 'text-muted small';
+              const badgeTxt = status === 'PAID'
+                ? `<span class="payroll-paid">PAID<br><small>${r.paidAt ? new Date(r.paidAt).toLocaleDateString('en-PH') : ''}</small></span>`
+                : status === 'PENDING'
+                  ? `<span class="payroll-pending">PENDING</span>`
+                  : `<span class="text-muted small">—</span>`;
+              const actionBtn = (isRecord && status === 'PENDING')
+                ? `<button class="btn btn-success btn-sm btn-icon" onclick="markPayrollPaid(${r.id})" title="Mark as Paid"><i class="fas fa-check"></i></button>`
+                : '';
+              return `<tr>
+                <td><code>${r.employeeCode}</code></td>
+                <td><strong>${r.fullName}</strong></td>
+                <td><span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[r.position]||''}">${r.position}</span></td>
+                <td class="text-center">${r.tripCount || 0}</td>
+                <td>${peso(r.grossPay)}</td>
+                <td class="text-danger">${Number(r.deductions||0) > 0 ? '−' + peso(r.deductions) : '—'}</td>
+                <td><strong>${peso(r.netPay)}</strong></td>
+                <td>${badgeTxt}</td>
+                <td>${actionBtn}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>`;
+  } catch {
+    el.innerHTML = '<div class="alert alert-danger">Failed to load payroll data.</div>';
+  }
+}
+
+async function generatePayroll(from, to) {
+  try {
+    const r = await api('/payroll/generate', 'POST', { from, to });
+    toast(`Payroll generated — ${r.generated} record(s) created`);
+    loadFinancePayroll();
+  } catch {}
+}
+
+async function markPayrollPaid(id) {
+  try {
+    await api(`/payroll/${id}/pay`, 'PATCH');
+    toast('Marked as paid');
+    loadFinancePayroll();
+  } catch {}
+}
+
+async function loadFinanceTreasury() {
+  const { from, to } = _financePeriod;
+  const el = document.getElementById('financeContent');
+  if (!el) return;
+  el.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading treasury…</div>';
+
+  try {
+    const s = await api(`/payroll/summary?from=${from}&to=${to}`);
+
+    const operWages    = Number(s.totalOperatorWages    || 0);
+    const fixedPayroll = Number(s.fixedStaffPayroll     || 0);
+    const totalPayroll = operWages + fixedPayroll;
+    const opExps       = Number(s.totalExpenses         || 0) - operWages;  // expenses minus embedded wages
+    const companyFinal = Number(s.companyFinal          || 0);
+
+    el.innerHTML = `
+      <div class="row g-3 mb-3">
+        <div class="col-6 col-md-3"><div class="stat-card blue"><div class="stat-label">Gross Income</div><div class="stat-value">${peso(s.totalGrossIncome)}</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card red"><div class="stat-label">Total Payroll Out</div><div class="stat-value">${peso(totalPayroll)}</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card purple"><div class="stat-label">Operating Expenses</div><div class="stat-value">${peso(s.totalExpenses)}</div></div></div>
+        <div class="col-6 col-md-3"><div class="stat-card green"><div class="stat-label">Company Keeps</div><div class="stat-value">${peso(companyFinal)}</div></div></div>
+      </div>
+      <div class="content-card p-3">
+        <div class="dash-section-label mb-2">Money Flow Breakdown</div>
+        <div class="treasury-row"><span>Gross Income (all trips)</span><span class="text-success fw-semibold">${peso(s.totalGrossIncome)}</span></div>
+        <div class="treasury-row"><span class="ms-3 text-muted">− Driver &amp; Conductor Wages</span><span class="text-danger">−${peso(s.totalOperatorWages)}</span></div>
+        <div class="treasury-row"><span class="ms-3 text-muted">− Bond Deductions (retained)</span><span class="text-muted">−${peso(s.totalBondsRetained)}</span></div>
+        <div class="treasury-row"><span class="ms-3 text-muted">− Commission</span><span class="text-muted">−${peso(s.totalCommission)}</span></div>
+        <div class="treasury-row"><span>Net Income after bonds &amp; commission</span><span class="fw-semibold">${peso(s.totalNetIncome)}</span></div>
+        <div class="treasury-row"><span class="ms-3 text-muted">− Operating Expenses (fuel, wash, damages…)</span><span class="text-danger">−${peso(s.totalExpenses)}</span></div>
+        <div class="treasury-row"><span>Net Profit (from trips)</span><span class="fw-semibold">${peso(s.netProfit)}</span></div>
+        <div class="treasury-row"><span class="ms-3 text-muted">− Fixed Staff Payroll (HR/Ops/Mechanic)</span><span class="text-danger">−${peso(s.fixedStaffPayroll)}</span></div>
+        <div class="treasury-row" style="margin-top:0.5rem;padding-top:0.5rem;border-top:2px solid #e0e0e0">
+          <span>Company Final (this period)</span>
+          <span class="fw-bold fs-5 ${companyFinal >= 0 ? 'text-success' : 'text-danger'}">${peso(companyFinal)}</span>
+        </div>
+      </div>`;
+  } catch {
+    el.innerHTML = '<div class="alert alert-danger">Failed to load treasury data.</div>';
   }
 }
 
