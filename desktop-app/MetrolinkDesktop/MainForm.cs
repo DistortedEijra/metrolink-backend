@@ -84,6 +84,9 @@ public class MainForm : Form {
     async void OnLoad(object? sender, EventArgs e) {
         // Init WebView2 (uses Edge runtime already on the PC)
         try {
+            string cacheDir = Path.Combine(Path.GetTempPath(), "MetrolinkFOMS", "WebView2");
+            if (Directory.Exists(cacheDir)) Directory.Delete(cacheDir, true);
+            webView.CreationProperties = new CoreWebView2CreationProperties { UserDataFolder = cacheDir };
             await webView.EnsureCoreWebView2Async();
             webView.CoreWebView2.Settings.AreDefaultContextMenusEnabled = false;
             webView.CoreWebView2.Settings.IsStatusBarEnabled            = false;
@@ -109,21 +112,9 @@ public class MainForm : Form {
     }
 
     // ── Auto-logout on close ──────────────────────────────
-    async void OnFormClosing(object? sender, FormClosingEventArgs e) {
+    void OnFormClosing(object? sender, FormClosingEventArgs e) {
         if (_closing) return;
-
-        e.Cancel   = true;   // pause close until JS finishes
-        _closing   = true;
-
-        if (webView.CoreWebView2 != null) {
-            try {
-                // Clear JWT tokens — user must log in again next session
-                await webView.CoreWebView2.ExecuteScriptAsync(
-                    "localStorage.removeItem('ml_token'); localStorage.removeItem('ml_user');");
-            } catch { }
-        }
-
-        Close(); // re-trigger close now that cleanup is done
+        _closing = true;
     }
 
     // ── Server startup ────────────────────────────────────
