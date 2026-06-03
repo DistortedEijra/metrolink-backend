@@ -284,11 +284,11 @@ function getTripModal() {
               </div>
               <div class="col-md-6">
                 <label class="form-label">Driver *</label>
-                <select id="tDriver" class="form-select" required></select>
+                <select id="tDriver" class="form-select" required onchange="updateDamageEmployeeOpts()"></select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Conductor *</label>
-                <select id="tConductor" class="form-select" required></select>
+                <select id="tConductor" class="form-select" required onchange="updateDamageEmployeeOpts()"></select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Dispatch Time *</label>
@@ -467,11 +467,20 @@ function populateTripDropdowns(busId, driverId, conductorId) {
     tripDrivers.map(d => `<option value="${d.id}" ${d.id == driverId ? 'selected' : ''}>${d.fullName}</option>`).join('');
   document.getElementById('tConductor').innerHTML =
     tripConductors.map(c => `<option value="${c.id}" ${c.id == conductorId ? 'selected' : ''}>${c.fullName}</option>`).join('');
-  // Populate employee responsible dropdown for damages
-  const allEmps = [...tripDrivers, ...tripConductors].sort((a,b) => a.fullName.localeCompare(b.fullName));
+  updateDamageEmployeeOpts();
+}
+
+function updateDamageEmployeeOpts() {
+  const driverId    = document.getElementById('tDriver')?.value;
+  const conductorId = document.getElementById('tConductor')?.value;
+  const driver    = tripDrivers.find(d => d.id == driverId);
+  const conductor = tripConductors.find(c => c.id == conductorId);
+  const opts = [driver, conductor].filter(Boolean);
   const empSel = document.getElementById('eEmployeeId');
-  if (empSel) empSel.innerHTML = '<option value="">— None —</option>' +
-    allEmps.map(e => `<option value="${e.id}">${e.fullName} (${e.position})</option>`).join('');
+  if (!empSel) return;
+  const curVal = empSel.value;
+  empSel.innerHTML = '<option value="">— None —</option>' +
+    opts.map(e => `<option value="${e.id}" ${e.id == curVal ? 'selected' : ''}>${e.fullName} (${e.position})</option>`).join('');
 }
 
 async function refreshAvailableStaff() {
@@ -638,16 +647,20 @@ async function openIncomeExp(tripId, busNum, tripDate) {
   modal.show();
   document.getElementById('ieBody').innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary"></div></div>';
 
-  const [inc, exp] = await Promise.all([
+  const [inc, exp, trip] = await Promise.all([
     api(`/trips/${tripId}/income`).catch(() => null),
-    api(`/trips/${tripId}/expenses`).catch(() => null)
+    api(`/trips/${tripId}/expenses`).catch(() => null),
+    api(`/trips/${tripId}`).catch(() => null)
   ]);
 
   const v = (obj, key, def = 0) => obj?.[key] ?? def;
 
-  // Build employee dropdown for damages
-  const allEmps2 = [...(tripDrivers||[]),...(tripConductors||[])].sort((a,b)=>a.fullName.localeCompare(b.fullName));
-  const empOpts = '<option value="">— None —</option>' + allEmps2.map(e=>`<option value="${e.id}" ${e.id==v(exp,'employeeId')?'selected':''}>${e.fullName}</option>`).join('');
+  // Build damage employee dropdown — only driver and conductor assigned to this trip
+  const assignedDriver    = (tripDrivers||[]).find(d => d.id === trip?.driverId);
+  const assignedConductor = (tripConductors||[]).find(c => c.id === trip?.conductorId);
+  const assignedEmps      = [assignedDriver, assignedConductor].filter(Boolean);
+  const empOpts = '<option value="">— None —</option>' +
+    assignedEmps.map(e => `<option value="${e.id}" ${e.id == v(exp,'employeeId') ? 'selected' : ''}>${e.fullName} (${e.position})</option>`).join('');
 
   document.getElementById('ieBody').innerHTML = `
     <div class="row g-3">
