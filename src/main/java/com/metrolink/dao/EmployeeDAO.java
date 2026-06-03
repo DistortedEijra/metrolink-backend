@@ -84,6 +84,29 @@ public class EmployeeDAO {
         }
     }
 
+    public List<Employee> findAvailableForDate(LocalDate date, int excludeTripId,
+                                               String position) throws SQLException {
+        String col = "DRIVER".equals(position) ? "driver_id" : "conductor_id";
+        String sql =
+            "SELECT * FROM employees " +
+            "WHERE position = ? AND is_active = TRUE " +
+            "  AND id NOT IN (" +
+            "    SELECT " + col + " FROM trips " +
+            "    WHERE trip_date = ? AND id != ?" +
+            "  ) ORDER BY full_name";
+        List<Employee> list = new ArrayList<>();
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, position);
+            ps.setDate(2, java.sql.Date.valueOf(date));
+            ps.setInt(3, excludeTripId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(mapRow(rs));
+            }
+        }
+        return list;
+    }
+
     public boolean setActive(int id, boolean isActive) throws SQLException {
         String sql = "UPDATE employees SET is_active=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();

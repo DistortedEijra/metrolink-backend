@@ -272,7 +272,7 @@ function getTripModal() {
             <div class="row g-3">
               <div class="col-md-4">
                 <label class="form-label">Trip Date *</label>
-                <input type="date" id="tDate" class="form-control" required>
+                <input type="date" id="tDate" class="form-control" required oninput="refreshAvailableStaff()">
               </div>
               <div class="col-md-4">
                 <label class="form-label">Bus *</label>
@@ -436,6 +436,7 @@ function openAddTrip() {
   document.getElementById('totalDisplay').textContent = '₱0.00';
   document.getElementById('tDate').value = new Date().toISOString().split('T')[0];
   populateTripDropdowns();
+  refreshAvailableStaff();
   switchTabTo(0);
   new bootstrap.Modal(document.getElementById('tripModal')).show();
 }
@@ -451,6 +452,9 @@ async function openEditTrip(id) {
   document.getElementById('tArrival').value  = (trip.arrivalTime  || '').substring(0, 5);
   document.getElementById('tRemarks').value = trip.remarks || '';
   populateTripDropdowns(trip.busId, trip.driverId, trip.conductorId);
+  await refreshAvailableStaff();
+  document.getElementById('tDriver').value    = trip.driverId;
+  document.getElementById('tConductor').value = trip.conductorId;
   switchTabTo(0);
   new bootstrap.Modal(document.getElementById('tripModal')).show();
 }
@@ -468,6 +472,25 @@ function populateTripDropdowns(busId, driverId, conductorId) {
   const empSel = document.getElementById('eEmployeeId');
   if (empSel) empSel.innerHTML = '<option value="">— None —</option>' +
     allEmps.map(e => `<option value="${e.id}">${e.fullName} (${e.position})</option>`).join('');
+}
+
+async function refreshAvailableStaff() {
+  const date = document.getElementById('tDate')?.value;
+  if (!date) return;
+  const excludeId = savedTripId || 0;
+  try {
+    const { drivers, conductors } = await api(`/trips/available-staff?date=${date}&excludeTripId=${excludeId}`);
+    const curDriver    = document.getElementById('tDriver').value;
+    const curConductor = document.getElementById('tConductor').value;
+    document.getElementById('tDriver').innerHTML =
+      drivers.length
+        ? drivers.map(d => `<option value="${d.id}" ${d.id == curDriver ? 'selected' : ''}>${d.fullName}</option>`).join('')
+        : '<option value="" disabled>No drivers available for this date</option>';
+    document.getElementById('tConductor').innerHTML =
+      conductors.length
+        ? conductors.map(c => `<option value="${c.id}" ${c.id == curConductor ? 'selected' : ''}>${c.fullName}</option>`).join('')
+        : '<option value="" disabled>No conductors available for this date</option>';
+  } catch {}
 }
 
 function switchTabTo(idx) {

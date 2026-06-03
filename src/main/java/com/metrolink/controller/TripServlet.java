@@ -29,6 +29,7 @@ public class TripServlet extends HttpServlet {
     private final ExpensesDAO  expensesDAO  = new ExpensesDAO();
     private final ChangelogDAO changelogDAO = new ChangelogDAO();
     private final AuditDAO     auditDAO     = new AuditDAO();
+    private final EmployeeDAO  employeeDAO  = new EmployeeDAO();
     private final ObjectMapper mapper       = ResponseUtil.getMapper();
 
     @Override
@@ -38,6 +39,16 @@ public class TripServlet extends HttpServlet {
 
             if (pathInfo == null || pathInfo.equals("/")) {
                 ResponseUtil.success(res, tripDAO.findAll());
+                return;
+            }
+
+            if (pathInfo.equals("/available-staff")) {
+                LocalDate date    = LocalDate.parse(req.getParameter("date"));
+                String excludeStr = req.getParameter("excludeTripId");
+                int excludeId     = (excludeStr != null && !excludeStr.isBlank()) ? Integer.parseInt(excludeStr) : 0;
+                var drivers    = employeeDAO.findAvailableForDate(date, excludeId, "DRIVER");
+                var conductors = employeeDAO.findAvailableForDate(date, excludeId, "CONDUCTOR");
+                ResponseUtil.success(res, Map.of("drivers", drivers, "conductors", conductors));
                 return;
             }
 
