@@ -11,39 +11,38 @@ public class PayrollDAO {
 
     // ── Compute payroll (preview, not saved) ─────────────────
     public List<Map<String, Object>> computePayroll(LocalDate from, LocalDate to) throws SQLException {
-        // Drivers: one row per employee per working day
+        // Drivers: one row per employee per working day — income stored directly in driver_income
         String driverSql =
             "SELECT e.id AS employee_id, e.full_name, e.employee_code, e.position, " +
             "  t.trip_date, " +
-            "  e.daily_rate AS base_pay, " +
-            "  COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS bonus_pay, " +
-            "  e.daily_rate + COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS gross_pay, " +
+            "  COALESCE(SUM(i.driver_income), 0) AS base_pay, " +
+            "  0 AS bonus_pay, " +
+            "  COALESCE(SUM(i.driver_income), 0) AS gross_pay, " +
             "  COALESCE(SUM(i.driver_bond + COALESCE(ex.cash_advance, 0)), 0) AS deductions, " +
-            "  e.daily_rate + COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) " +
+            "  COALESCE(SUM(i.driver_income), 0) " +
             "    - COALESCE(SUM(i.driver_bond + COALESCE(ex.cash_advance, 0)), 0) AS net_pay " +
             "FROM employees e " +
             "JOIN trips t ON t.driver_id = e.id AND t.trip_date BETWEEN ? AND ? " +
             "JOIN income i ON i.trip_id = t.id " +
             "LEFT JOIN expenses ex ON ex.trip_id = t.id " +
             "WHERE e.position = 'DRIVER' " +
-            "GROUP BY e.id, e.full_name, e.employee_code, e.position, e.daily_rate, t.trip_date " +
+            "GROUP BY e.id, e.full_name, e.employee_code, e.position, t.trip_date " +
             "ORDER BY t.trip_date, e.full_name";
 
         // Conductors: one row per employee per working day
         String conductorSql =
             "SELECT e.id AS employee_id, e.full_name, e.employee_code, e.position, " +
             "  t.trip_date, " +
-            "  e.daily_rate AS base_pay, " +
-            "  COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS bonus_pay, " +
-            "  e.daily_rate + COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) AS gross_pay, " +
+            "  COALESCE(SUM(i.conductor_income), 0) AS base_pay, " +
+            "  0 AS bonus_pay, " +
+            "  COALESCE(SUM(i.conductor_income), 0) AS gross_pay, " +
             "  COALESCE(SUM(i.conductor_bond), 0) AS deductions, " +
-            "  e.daily_rate + COALESCE(SUM(FLOOR(GREATEST(0, i.gross_income - 13000) / 1000) * 100), 0) " +
-            "    - COALESCE(SUM(i.conductor_bond), 0) AS net_pay " +
+            "  COALESCE(SUM(i.conductor_income), 0) - COALESCE(SUM(i.conductor_bond), 0) AS net_pay " +
             "FROM employees e " +
             "JOIN trips t ON t.conductor_id = e.id AND t.trip_date BETWEEN ? AND ? " +
             "JOIN income i ON i.trip_id = t.id " +
             "WHERE e.position = 'CONDUCTOR' " +
-            "GROUP BY e.id, e.full_name, e.employee_code, e.position, e.daily_rate, t.trip_date " +
+            "GROUP BY e.id, e.full_name, e.employee_code, e.position, t.trip_date " +
             "ORDER BY t.trip_date, e.full_name";
 
         // Fixed staff: one row per employee, trip_date = NULL
