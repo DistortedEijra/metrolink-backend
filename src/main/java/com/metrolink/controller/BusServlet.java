@@ -99,12 +99,22 @@ public class BusServlet extends HttpServlet {
             if (pathInfo != null && pathInfo.endsWith("/status")) {
                 int id = parseId(pathInfo.replace("/status", ""));
                 Map<String, Object> body = ResponseUtil.parseBody(req);
-                boolean isActive = (Boolean) body.get("isActive");
-                dao.setActive(id, isActive);
                 int userId = (int) req.getAttribute("userId");
                 String username = (String) req.getAttribute("username");
-                auditDAO.log(userId, username, "CHANGE_BUS_STATUS", "BUS", id, "isActive=" + isActive);
-                ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
+                if (body.containsKey("status")) {
+                    String status = (String) body.get("status");
+                    if (!java.util.Set.of("ACTIVE","INACTIVE","MAINTENANCE").contains(status)) {
+                        ResponseUtil.error(res, 400, "Invalid status"); return;
+                    }
+                    dao.setStatus(id, status);
+                    auditDAO.log(userId, username, "CHANGE_BUS_STATUS", "BUS", id, "status=" + status);
+                    ResponseUtil.success(res, Map.of("updated", true, "status", status));
+                } else {
+                    boolean isActive = (Boolean) body.get("isActive");
+                    dao.setActive(id, isActive);
+                    auditDAO.log(userId, username, "CHANGE_BUS_STATUS", "BUS", id, "isActive=" + isActive);
+                    ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
+                }
             }
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());

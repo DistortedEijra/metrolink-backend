@@ -23,7 +23,7 @@ public class BusDAO {
 
     public List<Map<String, Object>> findActive() throws SQLException {
         List<Map<String, Object>> list = new ArrayList<>();
-        String sql = "SELECT * FROM buses WHERE is_active = TRUE ORDER BY bus_number";
+        String sql = "SELECT * FROM buses WHERE status = 'ACTIVE' ORDER BY bus_number";
         try (Connection c = DatabaseConfig.getConnection();
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
@@ -72,11 +72,18 @@ public class BusDAO {
     }
 
     public boolean setActive(int id, boolean isActive) throws SQLException {
-        String sql = "UPDATE buses SET is_active=? WHERE id=?";
+        String newStatus = isActive ? "ACTIVE" : "INACTIVE";
+        return setStatus(id, newStatus);
+    }
+
+    public boolean setStatus(int id, String status) throws SQLException {
+        boolean isActive = "ACTIVE".equals(status);
+        String sql = "UPDATE buses SET status=?, is_active=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setBoolean(1, isActive);
-            ps.setInt(2, id);
+            ps.setString(1, status);
+            ps.setBoolean(2, isActive);
+            ps.setInt(3, id);
             return ps.executeUpdate() > 0;
         }
     }
@@ -87,7 +94,9 @@ public class BusDAO {
         m.put("busNumber", rs.getString("bus_number"));
         m.put("plateNo",   rs.getString("plate_no"));
         m.put("model",     rs.getString("model"));
-        m.put("isActive",  rs.getBoolean("is_active"));
+        String status = rs.getString("status");
+        m.put("status",   status);
+        m.put("isActive", "ACTIVE".equals(status));
         m.put("createdAt", rs.getTimestamp("created_at"));
         return m;
     }

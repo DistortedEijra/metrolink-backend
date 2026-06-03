@@ -136,6 +136,7 @@ body { background: #f0f2f8; font-family: 'Segoe UI', sans-serif; }
 }
 .status-active { background: #e8f5e9; color: #2e7d32; }
 .status-inactive { background: #ffebee; color: #c62828; }
+.status-maintenance { background: #fff3e0; color: #e65100; }
 .status-modified { background: #fff8e1; color: #e65100; }
 .status-driver { background: #e3f2fd; color: #1565c0; }
 .status-conductor { background: #f3e5f5; color: #6a1b9a; }

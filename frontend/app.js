@@ -456,7 +456,7 @@ async function openEditTrip(id) {
 }
 
 function populateTripDropdowns(busId, driverId, conductorId) {
-  const activeBuses = tripBuses.filter(b => b.isActive || b.id == busId);
+  const activeBuses = tripBuses.filter(b => b.status === 'ACTIVE' || b.id == busId);
   document.getElementById('tBus').innerHTML =
     activeBuses.map(b => `<option value="${b.id}" ${b.id == busId ? 'selected' : ''}>${b.busNumber} — ${b.plateNo}</option>`).join('');
   document.getElementById('tDriver').innerHTML =
@@ -977,13 +977,12 @@ function renderBusRows(rows) {
       <td><strong>${b.busNumber}</strong></td>
       <td>${b.plateNo}</td>
       <td>${dash(b.model)}</td>
-      <td><span class="status-badge ${b.isActive ? 'status-active' : 'status-inactive'}">${b.isActive ? 'Active' : 'Inactive'}</span></td>
-      ${isAdmin() ? `<td>
-        <button class="btn btn-outline-primary btn-icon me-1" onclick="openEditBus(${b.id})" title="Edit"><i class="fas fa-edit"></i></button>
-        <button class="btn ${b.isActive ? 'btn-outline-danger' : 'btn-outline-success'} btn-icon"
-          onclick="toggleBus(${b.id},${!b.isActive})" title="${b.isActive ? 'Deactivate' : 'Activate'}">
-          <i class="fas ${b.isActive ? 'fa-ban' : 'fa-check'}"></i>
-        </button>
+      <td><span class="status-badge ${{ACTIVE:'status-active',INACTIVE:'status-inactive',MAINTENANCE:'status-maintenance'}[b.status]||'status-inactive'}">${{ACTIVE:'Active',INACTIVE:'Inactive',MAINTENANCE:'Under Maintenance'}[b.status]||b.status}</span></td>
+      ${isAdmin() ? `<td class="d-flex gap-1 flex-wrap">
+        <button class="btn btn-outline-primary btn-icon" onclick="openEditBus(${b.id})" title="Edit"><i class="fas fa-edit"></i></button>
+        ${b.status !== 'ACTIVE'      ? `<button class="btn btn-outline-success btn-icon" onclick="setBusStatus(${b.id},'ACTIVE')" title="Activate"><i class="fas fa-check"></i></button>` : ''}
+        ${b.status !== 'MAINTENANCE' ? `<button class="btn btn-outline-warning btn-icon" onclick="setBusStatus(${b.id},'MAINTENANCE')" title="Set Maintenance"><i class="fas fa-wrench"></i></button>` : ''}
+        ${b.status !== 'INACTIVE'    ? `<button class="btn btn-outline-danger btn-icon" onclick="setBusStatus(${b.id},'INACTIVE')" title="Deactivate"><i class="fas fa-ban"></i></button>` : ''}
       </td>` : ''}
     </tr>`).join('');
 }
@@ -1057,11 +1056,12 @@ async function saveBus() {
   } catch {}
 }
 
-async function toggleBus(id, active) {
-  if (!confirm(`${active ? 'Activate' : 'Deactivate'} this bus?`)) return;
+async function setBusStatus(id, status) {
+  const labels = { ACTIVE: 'Activate', INACTIVE: 'Deactivate', MAINTENANCE: 'Set Under Maintenance' };
+  if (!confirm(`${labels[status] || status} this bus?`)) return;
   try {
-    await api(`/buses/${id}/status`, 'PATCH', { isActive: active });
-    toast(`Bus ${active ? 'activated' : 'deactivated'}`);
+    await api(`/buses/${id}/status`, 'PATCH', { status });
+    toast(`Bus status updated to ${status.toLowerCase()}`);
     renderBuses();
   } catch {}
 }
