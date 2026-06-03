@@ -284,7 +284,7 @@ function getTripModal() {
               </div>
               <div class="col-md-6">
                 <label class="form-label">Driver *</label>
-                <select id="tDriver" class="form-select" required onchange="updateDamageEmployeeOpts()"></select>
+                <select id="tDriver" class="form-select" required onchange="updateDamageEmployeeOpts();calcDriverSalary()"></select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Conductor *</label>
@@ -310,7 +310,7 @@ function getTripModal() {
                 <label class="form-label">Gross Income *</label>
                 <div class="input-group">
                   <span class="input-group-text">₱</span>
-                  <input type="number" id="iGross" class="form-control" min="0" step="0.01" placeholder="0.00" oninput="calcNet();calcBonus()">
+                  <input type="number" id="iGross" class="form-control" min="0" step="0.01" placeholder="0.00" oninput="calcNet();calcBonus();calcDriverSalary()">
                 </div>
               </div>
               <div class="col-md-4">
@@ -367,7 +367,7 @@ function getTripModal() {
                 <input type="number" id="eWashing" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
               <div class="col-md-4"><label class="form-label">Driver Salary</label>
                 <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eSalary" class="form-control" min="0" step="0.01" value="1225" oninput="calcTotal()"></div></div>
+                <input type="number" id="eSalary" class="form-control bg-light" readonly title="Auto-calculated: daily rate + quota bonus"></div></div>
               <div class="col-md-4"><label class="form-label">Overtime</label>
                 <div class="input-group"><span class="input-group-text">₱</span>
                 <input type="number" id="eOT" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
@@ -428,7 +428,7 @@ function openAddTrip() {
    'iDriverBond','iConductorBond','iCommission',
    'eDiesel','eWashing','eSalary','eOT','eNight','eBonus','eCash','eDamage','eOther','eDamageRemark'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.value = el.type === 'number' ? (id === 'eSalary' ? '1225' : '0') : '';
+    if (el) el.value = el.type === 'number' ? '0' : '';
   });
   const eEmpSel = document.getElementById('eEmployeeId');
   if (eEmpSel) eEmpSel.value = '';
@@ -437,6 +437,7 @@ function openAddTrip() {
   document.getElementById('tDate').value = new Date().toISOString().split('T')[0];
   populateTripDropdowns();
   refreshAvailableStaff();
+  calcDriverSalary();
   switchTabTo(0);
   new bootstrap.Modal(document.getElementById('tripModal')).show();
 }
@@ -455,6 +456,7 @@ async function openEditTrip(id) {
   await refreshAvailableStaff();
   document.getElementById('tDriver').value    = trip.driverId;
   document.getElementById('tConductor').value = trip.conductorId;
+  calcDriverSalary();
   switchTabTo(0);
   new bootstrap.Modal(document.getElementById('tripModal')).show();
 }
@@ -652,6 +654,7 @@ async function openIncomeExp(tripId, busNum, tripDate) {
     api(`/trips/${tripId}/expenses`).catch(() => null),
     api(`/trips/${tripId}`).catch(() => null)
   ]);
+  window._ieDriverId = trip?.driverId ?? null;
 
   const v = (obj, key, def = 0) => obj?.[key] ?? def;
 
@@ -693,15 +696,15 @@ async function openIncomeExp(tripId, busNum, tripDate) {
       <div class="col-md-6">
         <div class="section-header"><i class="fas fa-arrow-up me-1"></i>Expenses</div>
         ${[['ie_diesel','Diesel',v(exp,'diesel')],['ie_wash','Washing',v(exp,'washing')],
-           ['ie_sal','Driver Salary',v(exp,'driverSalary',1225)],['ie_ot','Overtime',v(exp,'overtime')],
+           ['ie_sal','Driver Salary',0,'readonly bg-light'],['ie_ot','Overtime',v(exp,'overtime')],
            ['ie_nd','Night Diff',v(exp,'nightDiff')],['ie_bonus','Bonus',v(exp,'bonus')],
            ['ie_ca','Cash Advance',v(exp,'cashAdvance')],['ie_dmg','Damages',v(exp,'damages')],
-           ['ie_other','Other',v(exp,'otherExpenses')]].map(([id,lbl,val]) => `
+           ['ie_other','Other',v(exp,'otherExpenses')]].map(([id,lbl,val,extra]) => `
           <div class="mb-1 row g-1 align-items-center">
             <div class="col-4"><label class="form-label mb-0" style="font-size:0.78rem">${lbl}</label></div>
             <div class="col-8"><div class="input-group input-group-sm">
               <span class="input-group-text">₱</span>
-              <input type="number" id="${id}" class="form-control" value="${val}" min="0" step="0.01" oninput="ieCalcTotal()">
+              <input type="number" id="${id}" class="form-control${extra ? ' '+extra : ''}" value="${val}" min="0" step="0.01" ${extra?.includes('readonly') ? 'readonly' : 'oninput="ieCalcTotal()"'}>
             </div></div>
           </div>`).join('')}
         <div class="mb-1 row g-1 align-items-center">
@@ -730,15 +733,31 @@ function ieCalcNet() {
   document.getElementById('ie_net').textContent = peso(g - db - cb - c);
 }
 
+function calcDriverSalary() {
+  const driverId  = +document.getElementById('tDriver')?.value || 0;
+  const gross     = +document.getElementById('iGross')?.value || 0;
+  const driver    = (tripDrivers || []).find(d => d.id === driverId);
+  const dailyRate = driver?.dailyRate ?? 1225;
+  const bonus     = Math.max(0, Math.floor((gross - 13000) / 1000)) * 100;
+  const el = document.getElementById('eSalary');
+  if (el) { el.value = dailyRate + bonus; calcTotal(); }
+}
+
 function ieCalcBonus() {
   const gross = +document.getElementById('ie_gross').value || 0;
   const units = Math.max(0, Math.floor((gross - 13000) / 1000));
   const bonus = units * 100;
   const el = document.getElementById('ie_bonusPreview');
-  if (!el) return;
-  el.innerHTML = units > 0
-    ? `<i class="fas fa-star text-warning me-1"></i><strong class="text-success">Quota bonus: +₱${bonus} each</strong> (${units} unit${units > 1 ? 's' : ''} × ₱100)`
-    : `<i class="fas fa-info-circle me-1"></i>No quota bonus — below ₱13,000`;
+  if (el) {
+    el.innerHTML = units > 0
+      ? `<i class="fas fa-star text-warning me-1"></i><strong class="text-success">Quota bonus: +₱${bonus} each</strong> (${units} unit${units > 1 ? 's' : ''} × ₱100)`
+      : `<i class="fas fa-info-circle me-1"></i>No quota bonus — below ₱13,000`;
+  }
+  // Auto-update driver salary: daily_rate + quota_bonus
+  const driver    = (tripDrivers || []).find(d => d.id === window._ieDriverId);
+  const dailyRate = driver?.dailyRate ?? 1225;
+  const salEl     = document.getElementById('ie_sal');
+  if (salEl) { salEl.value = dailyRate + bonus; ieCalcTotal(); }
 }
 
 function ieCalcTotal() {
