@@ -143,7 +143,12 @@ public class UserServlet extends HttpServlet {
             if (pathInfo != null && pathInfo.endsWith("/status")) {
                 requireAdmin(req, res);
                 int id = parseId(pathInfo.replace("/status", ""));
-                boolean isActive = (Boolean) body.get("isActive");
+                Object isActiveValue = body.get("isActive");
+                if (!(isActiveValue instanceof Boolean)) {
+                    ResponseUtil.error(res, 400, "isActive is required");
+                    return;
+                }
+                boolean isActive = (Boolean) isActiveValue;
                 userDAO.setActive(id, isActive);
                 auditDAO.log(requesterId, requesterName, "CHANGE_USER_STATUS", "USER", id, "isActive=" + isActive);
                 ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));

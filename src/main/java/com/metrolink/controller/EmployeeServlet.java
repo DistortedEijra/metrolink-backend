@@ -130,7 +130,12 @@ public class EmployeeServlet extends HttpServlet {
             if (pathInfo != null && pathInfo.endsWith("/status")) {
                 int id = parseId(pathInfo.replace("/status", ""));
                 Map<String, Object> body = ResponseUtil.parseBody(req);
-                boolean isActive = (Boolean) body.get("isActive");
+                Object isActiveValue = body.get("isActive");
+                if (!(isActiveValue instanceof Boolean)) {
+                    ResponseUtil.error(res, 400, "isActive is required");
+                    return;
+                }
+                boolean isActive = (Boolean) isActiveValue;
                 dao.setActive(id, isActive);
                 int userId = (int) req.getAttribute("userId");
                 String username = (String) req.getAttribute("username");

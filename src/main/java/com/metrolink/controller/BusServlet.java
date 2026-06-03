@@ -110,7 +110,12 @@ public class BusServlet extends HttpServlet {
                     auditDAO.log(userId, username, "CHANGE_BUS_STATUS", "BUS", id, "status=" + status);
                     ResponseUtil.success(res, Map.of("updated", true, "status", status));
                 } else {
-                    boolean isActive = (Boolean) body.get("isActive");
+                    Object isActiveValue = body.get("isActive");
+                    if (!(isActiveValue instanceof Boolean)) {
+                        ResponseUtil.error(res, 400, "status or isActive is required");
+                        return;
+                    }
+                    boolean isActive = (Boolean) isActiveValue;
                     dao.setActive(id, isActive);
                     auditDAO.log(userId, username, "CHANGE_BUS_STATUS", "BUS", id, "isActive=" + isActive);
                     ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
