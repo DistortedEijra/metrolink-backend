@@ -120,7 +120,7 @@ function go(page) {
   window.scrollTo({ top: 0, behavior: 'instant' });
   const map = { login: renderLogin, dashboard: renderDashboard, trips: renderTrips, employees: renderEmployees,
                 buses: renderBuses, reports: renderReports, finance: renderFinance, users: renderUsers,
-                backup: renderBackup, audit: renderAudit };
+                backup: renderBackup, audit: renderAudit, help: renderHelp };
   (map[page] || (() => toast('Unknown page', 'warning')))();
 }
 
@@ -133,6 +133,7 @@ function shell(activePage, content) {
     { id: 'employees', icon: 'fa-users',         label: 'Employees' },
     { id: 'buses',     icon: 'fa-bus',           label: 'Buses' },
     { id: 'reports',   icon: 'fa-chart-bar',     label: 'Reports' },
+    { id: 'help',      icon: 'fa-circle-question', label: 'Help' },
   ];
   if (isAdmin()) {
     nav.push({ id: 'finance', icon: 'fa-money-bill-wave',  label: 'Finance' });
@@ -1391,6 +1392,142 @@ async function loadReport(type) {
   } catch {
     cont.innerHTML = '<div class="alert alert-danger">Failed to load report.</div>';
   }
+}
+
+// ══════════════════════════════════════════════════════════
+// HELP / USER GUIDE
+// ══════════════════════════════════════════════════════════
+const FEATURE_GUIDE = [
+  {
+    id: 'dashboard', icon: 'fa-th-large', title: 'Dashboard', roles: ['ADMIN', 'STAFF'],
+    summary: 'Your landing page — a quick overview of company performance: trip volume, income, expenses and profit trends.',
+    steps: [
+      'Open from the sidebar — this is also the page you land on after logging in.',
+      'Check the stat cards at the top for at-a-glance totals (trips, gross income, expenses, profit).',
+      'Use the charts to spot trends in trip volume and income over time.',
+      'Admins additionally see a "Recent Activity" panel showing the latest changes made across the system.',
+    ],
+  },
+  {
+    id: 'trips', icon: 'fa-route', title: 'Trip Management', roles: ['ADMIN', 'STAFF'],
+    summary: 'Record each bus trip for the day, including the bus, crew, and the income/expenses it generated.',
+    steps: [
+      'Click "Add Trip" and fill in the trip date, bus number, driver, conductor, and income/expense details across the form tabs.',
+      'Save the trip — it will appear in the table, which you can search by bus/driver or filter by date.',
+      'Use the refresh button to reload the latest trips from the server.',
+      'Admins can click the edit icon on any row to correct a previously logged trip; edits are tracked and flagged as "Modified".',
+    ],
+  },
+  {
+    id: 'employees', icon: 'fa-users', title: 'Employees', roles: ['ADMIN', 'STAFF'],
+    summary: 'Browse the roster of drivers, conductors and other staff, including their rates and status.',
+    steps: [
+      'Search by name/code or filter by position (Driver/Conductor) using the toolbar above the table.',
+      'Each row shows the employee\'s code, position badge, daily/bi-monthly rate, and active/inactive status.',
+      'Admins can click "Add Employee" to register a new staff member, the edit icon to update their details, and the toggle icon to activate or deactivate an account.',
+    ],
+  },
+  {
+    id: 'buses', icon: 'fa-bus', title: 'Buses', roles: ['ADMIN', 'STAFF'],
+    summary: 'View the bus fleet and each unit\'s current operating status.',
+    steps: [
+      'Browse the table to see every bus number and whether it is currently active or inactive.',
+      'Admins can click "Add Bus" to register a new unit, the edit icon to update its details, and the toggle icon to mark it active or inactive.',
+    ],
+  },
+  {
+    id: 'reports', icon: 'fa-chart-bar', title: 'Reports', roles: ['ADMIN', 'STAFF'],
+    summary: 'Generate financial and operational summaries for any date range.',
+    steps: [
+      'Pick a "From" and "To" date, then choose a report type:',
+      '"Summary" — totals for trips, gross/net income, expenses and profit for the period.',
+      '"Trip Report" — a per-trip breakdown of income, expenses and profit.',
+      '"Low Income" — flags trips that fell below the ₱13,000 quota so they can be reviewed.',
+      'Admins additionally have a "Changelogs" report showing which trips were edited, by whom, and when.',
+    ],
+  },
+  {
+    id: 'finance', icon: 'fa-money-bill-wave', title: 'Finance', roles: ['ADMIN'],
+    summary: 'Manage payroll and monitor company treasury — admin only.',
+    steps: [
+      'Use the period navigator (◀ ▶) at the top to move between bi-monthly pay periods.',
+      '"Daily Payroll" — review computed pay for drivers/conductors based on logged trips, and mark records as paid.',
+      '"Bi-Monthly" — review and process bi-monthly salaries for other staff positions.',
+      '"Company Treasury" — view the running balance of company income versus expenses and payouts.',
+      'Click the green check icon next to a pending payroll record to mark it as paid once disbursed.',
+    ],
+  },
+  {
+    id: 'users', icon: 'fa-user-cog', title: 'Staff Accounts', roles: ['ADMIN'],
+    summary: 'Create and manage the login accounts that can access this system — admin only.',
+    steps: [
+      'Click "Add User" to register a new account — set their username, full name, password and role (Admin or Staff).',
+      'Use the edit icon to update an account\'s details or reset its password.',
+      'Assign the "Staff" role for day-to-day operational access, or "Admin" for full access including Finance, Staff Accounts, Audit Log and Backup.',
+    ],
+  },
+  {
+    id: 'audit', icon: 'fa-clipboard-list', title: 'Audit Log', roles: ['ADMIN'],
+    summary: 'A read-only history of important changes made across the system — admin only.',
+    steps: [
+      'Pick a date range to view who changed what and when (e.g. trip edits, account changes).',
+      'Use this page to investigate discrepancies or confirm that a particular change was made by the expected person.',
+    ],
+  },
+  {
+    id: 'backup', icon: 'fa-database', title: 'Backup', roles: ['ADMIN'],
+    summary: 'Generate a downloadable snapshot of the entire database — admin only.',
+    steps: [
+      'Click "Generate & Download Backup" to run a database dump and download a .sql file containing all current data.',
+      'Store the downloaded file somewhere safe — it can be used to restore the system in case of data loss.',
+    ],
+  },
+];
+
+function helpAccordionItem(f, index) {
+  const collapseId = `help-collapse-${f.id}`;
+  const headingId  = `help-heading-${f.id}`;
+  return `
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="${headingId}">
+        <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button"
+          data-bs-toggle="collapse" data-bs-target="#${collapseId}"
+          aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="${collapseId}">
+          <i class="fas ${f.icon} me-2 text-primary"></i><strong>${f.title}</strong>
+          ${f.roles.length === 1 ? '<span class="status-badge status-admin ms-2">Admin only</span>' : ''}
+        </button>
+      </h2>
+      <div id="${collapseId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}"
+        aria-labelledby="${headingId}" data-bs-parent="#helpAccordion">
+        <div class="accordion-body">
+          <p class="text-muted mb-2">${f.summary}</p>
+          <ol class="mb-0 ps-3">
+            ${f.steps.map(s => `<li class="mb-1">${s}</li>`).join('')}
+          </ol>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function renderHelp() {
+  const admin = isAdmin();
+  const items = FEATURE_GUIDE.filter(f => f.roles.includes(admin ? 'ADMIN' : 'STAFF'));
+
+  shell('help', `
+    <div class="page-header">
+      <div><h4><i class="fas fa-circle-question me-2"></i>Help &amp; User Guide</h4>
+        <div class="subtitle">How to use Metrolink FOMS — tailored to your role</div></div>
+    </div>
+    <div class="alert alert-info py-2 px-3 mb-3" style="font-size:0.8rem">
+      <i class="fas fa-circle-info me-1"></i>
+      You're signed in as <strong>${admin ? 'Admin' : 'Staff'}</strong>. This guide only lists the features
+      available to your account${admin ? '' : ' — Finance, Staff Accounts, Audit Log and Backup are restricted to admins'}.
+    </div>
+    <div class="content-card">
+      <div class="accordion" id="helpAccordion">
+        ${items.map((f, i) => helpAccordionItem(f, i)).join('')}
+      </div>
+    </div>`);
 }
 
 // ══════════════════════════════════════════════════════════

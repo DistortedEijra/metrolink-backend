@@ -377,6 +377,23 @@ body {
   overflow: hidden;
 }
 
+/* ══ Help accordion — match content-card theme ═════════════ */
+#helpAccordion .accordion-item { border: none; border-bottom: 1px solid var(--border); }
+#helpAccordion .accordion-item:last-child { border-bottom: none; }
+#helpAccordion .accordion-button {
+  background: var(--surface);
+  color: var(--text-1);
+  font-size: 0.88rem;
+  box-shadow: none;
+}
+#helpAccordion .accordion-button:not(.collapsed) {
+  background: var(--bg-alt);
+  color: var(--text-1);
+  box-shadow: inset 0 -1px 0 var(--border);
+}
+#helpAccordion .accordion-button:focus { box-shadow: none; }
+#helpAccordion .accordion-body { font-size: 0.85rem; color: var(--text-2); }
+
 /* ══ Stat cards — CoreUI vivid colored ═════════════════════ */
 .stat-card {
   border-radius: var(--radius);
