@@ -76,13 +76,7 @@ body {
 /* ══ Login — split layout ═══════════════════════════════════ */
 .login-wrapper {
   min-height: 100vh;
-  /* General background — dark navy with blue & amber glows */
-  background: #0b1120;
-  background-image:
-    radial-gradient(ellipse at 20% 60%, rgba(37,99,235,0.18) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 30%, rgba(245,158,11,0.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 100%, rgba(30,58,138,0.20) 0%, transparent 50%);
-  background-attachment: fixed;
+  background: #f0f2f5;
   display: flex; align-items: center; justify-content: center;
   padding: 1.5rem;
 }
@@ -98,41 +92,44 @@ body {
 /* ── Left hero panel ── */
 .login-hero {
   flex: 1.1;
-  /* Bus photo + dark gradient overlay stacked */
-  background-image:
-    linear-gradient(160deg, rgba(10,16,35,0.82) 0%, rgba(18,30,65,0.74) 50%, rgba(10,18,40,0.80) 100%),
-    url('bus-bg.jpg');
-  background-size: cover;
-  background-position: center 40%;
+  background: linear-gradient(145deg, #1a1f36 0%, #212d4a 45%, #1e3a6e 100%);
   position: relative;
   overflow: hidden;
   display: flex; align-items: center; justify-content: center;
   padding: 2.5rem 2rem;
 }
 
-/* Subtle amber bottom-fade over the photo */
-.login-hero::after {
-  content: '';
-  position: absolute; bottom: 0; left: 0; right: 0;
-  height: 45%;
-  background: linear-gradient(to top, rgba(10,16,35,0.65) 0%, transparent 100%);
-  pointer-events: none;
-}
-
-/* Decorative pill shapes */
-.login-deco { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
+/* Decorative pill shapes — inspired by the reference design */
+.login-deco { position: absolute; inset: 0; pointer-events: none; }
 .deco-pill {
   position: absolute;
   border-radius: 50px;
+  opacity: 0.18;
 }
-.deco-pill.p1 { width: 90px;  height: 26px; background: var(--accent);  bottom: 22%; left: 8%;  transform: rotate(-38deg); opacity: 0.35; }
-.deco-pill.p2 { width: 60px;  height: 17px; background: var(--accent);  bottom: 30%; left: 20%; transform: rotate(-38deg); opacity: 0.22; }
-.deco-pill.p3 { width: 110px; height: 26px; background: #3b9ede;         bottom: 14%; left: 14%; transform: rotate(-38deg); opacity: 0.30; }
-.deco-pill.p4 { width: 70px;  height: 20px; background: var(--primary);  bottom: 8%;  left: 32%; transform: rotate(-38deg); opacity: 0.28; }
-.deco-pill.p5 { width: 140px; height: 28px; background: var(--accent);   bottom: 36%; left: -5%; transform: rotate(-38deg); opacity: 0.18; }
-.deco-pill.p6 { width: 50px;  height: 15px; background: #3b9ede;         bottom: 42%; left: 28%; transform: rotate(-38deg); opacity: 0.22; }
+.deco-pill.p1 { width: 90px; height: 28px; background: var(--accent); bottom: 22%; left: 8%; transform: rotate(-38deg); }
+.deco-pill.p2 { width: 60px; height: 18px; background: var(--accent); bottom: 30%; left: 20%; transform: rotate(-38deg); opacity: 0.12; }
+.deco-pill.p3 { width: 110px; height: 28px; background: #3b9ede; bottom: 14%; left: 14%; transform: rotate(-38deg); }
+.deco-pill.p4 { width: 70px; height: 22px; background: var(--primary); bottom: 8%;  left: 32%; transform: rotate(-38deg); opacity: 0.2; }
+.deco-pill.p5 { width: 140px; height: 30px; background: var(--accent); bottom: 36%; left: -5%; transform: rotate(-38deg); opacity: 0.1; }
+.deco-pill.p6 { width: 50px; height: 16px; background: #3b9ede; bottom: 42%; left: 28%; transform: rotate(-38deg); opacity: 0.15; }
 
-.login-hero-content { position: relative; z-index: 2; color: white; }
+/* Radial glow blobs */
+.login-hero::before {
+  content: '';
+  position: absolute; top: -60px; right: -60px;
+  width: 280px; height: 280px;
+  background: radial-gradient(circle, rgba(59,130,246,0.18) 0%, transparent 70%);
+  pointer-events: none;
+}
+.login-hero::after {
+  content: '';
+  position: absolute; bottom: -40px; left: -40px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(245,158,11,0.12) 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.login-hero-content { position: relative; z-index: 1; color: white; }
 .hero-icon {
   width: 58px; height: 58px; border-radius: 14px;
   background: linear-gradient(135deg, var(--primary) 0%, #1d4ed8 100%);

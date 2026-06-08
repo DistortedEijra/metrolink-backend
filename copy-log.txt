@@ -1,0 +1,131 @@
+Checking AppData\Roaming contents: 
+ Volume in drive C is Acer
+ Volume Serial Number is 3A29-E588
+
+ Directory of C:\Users\Arjie\AppData\Roaming
+
+18/05/2026  01:17 pm    <DIR>          .
+05/08/2025  09:21 pm    <DIR>          .dart-tool
+05/08/2025  09:26 pm                78 .flutter
+05/08/2025  09:54 pm    <DIR>          .flutter-devtools
+05/08/2025  09:55 pm                25 .flutter_settings
+18/05/2026  11:58 am                22 .flutter_tool_state
+01/12/2025  11:16 pm    <DIR>          .minecraft
+04/12/2025  06:55 am    <DIR>          .tlauncher
+24/12/2023  10:59 pm    <DIR>          ABaF
+09/12/2023  11:11 pm    <DIR>          Adobe
+16/06/2024  02:04 pm    <DIR>          Apple Computer
+13/04/2026  04:09 pm    <DIR>          Arduino IDE
+13/04/2026  07:38 pm    <DIR>          arduino-ide
+05/09/2025  11:46 pm    <DIR>          AudioKies
+14/11/2023  09:53 pm    <DIR>          AudioVisualizerApp
+14/08/2025  01:14 pm    <DIR>          AutomaticSolution Software
+16/05/2024  04:43 pm    <DIR>          Battle.net
+08/04/2026  04:20 am    <DIR>          Bitdefender
+15/12/2024  08:46 pm    <DIR>          Bitdefender Security App
+09/09/2023  06:29 pm    <DIR>          Blackmagic Design
+02/09/2023  03:42 pm    <DIR>          Brackets
+02/09/2023  08:02 pm    <DIR>          BracketsChromeProfile
+23/04/2026  01:05 am    <DIR>          byteexec
+15/03/2025  11:03 am             1,231 CascView.ini
+05/01/2026  03:40 pm    <DIR>          Celestial Launcher
+20/01/2024  06:49 pm    <DIR>          CELSYS
+20/01/2024  06:42 pm    <DIR>          CELSYSUserData
+20/01/2024  06:49 pm    <DIR>          CELSYS_EN
+08/06/2026  04:33 pm    <DIR>          Code
+26/10/2024  05:40 pm    <DIR>          Cognosphere
+28/11/2023  12:55 pm    <DIR>          com.adobe.dunamis
+06/05/2026  10:19 pm    <DIR>          com.cloudflare
+10/04/2026  05:30 pm    <DIR>          com.example
+27/07/2025  11:22 pm    <DIR>          Command and Conquer - Generals
+30/07/2025  08:56 pm    <DIR>          Command and Conquer 3 Kanes Wrath
+29/07/2025  09:12 pm    <DIR>          Command and Conquer 3 Tiberium Wars
+06/04/2026  04:15 pm    <DIR>          Cursor
+26/11/2023  05:21 pm    <DIR>          Digiarty
+07/06/2026  10:20 pm    <DIR>          discord
+05/01/2026  03:40 pm    <DIR>          discord-cache
+11/11/2023  05:51 pm    <DIR>          Docker
+18/04/2024  05:59 pm    <DIR>          Dropbox
+19/03/2026  01:50 am    <DIR>          EA
+19/03/2026  01:50 am    <DIR>          EAAntiCheat.Installer.Tool
+09/03/2026  12:04 am    <DIR>          EasyAntiCheat
+13/04/2024  04:51 pm    <DIR>          ExplorerPatcher
+04/11/2025  10:52 am    <DIR>          firebase
+01/09/2023  09:55 pm    <DIR>          fltk.org
+03/12/2025  01:59 am    <DIR>          FTB Electron App
+19/09/2023  12:17 am    <DIR>          GameMakerStudio2
+04/12/2025  08:00 am    <DIR>          gg.essential.mod
+18/05/2026  01:17 pm    <DIR>          GitHub CLI
+18/05/2026  02:26 pm    <DIR>          GitHub Desktop
+21/08/2023  12:08 am    <DIR>          GMEGLOBAL
+23/04/2026  08:31 pm    <DIR>          go
+20/06/2025  02:43 am    <DIR>          Godot
+26/12/2023  04:04 am    <DIR>          Goldberg SteamEmu Saves
+05/08/2025  10:24 pm    <DIR>          Google
+04/10/2025  02:09 am    <DIR>          GSE Saves
+04/01/2026  11:12 pm    <DIR>          JAM Software
+01/10/2023  01:43 pm    <DIR>          java
+14/08/2023  06:49 pm    <DIR>          JetBrains
+21/11/2024  10:37 pm    <DIR>          Lakhya's Innovation Inc
+23/04/2026  03:23 pm    <DIR>          Lantern
+16/12/2024  09:29 pm    <DIR>          MarvelRivals_Launcher
+16/09/2023  08:51 pm    <DIR>          MathWorks
+26/07/2024  11:16 am    <DIR>          Messenger
+24/09/2025  11:00 pm    <DIR>          MetaQuotes
+02/12/2024  11:28 pm    <DIR>          Mozilla
+15/03/2025  02:10 pm               963 MPQEditor.ini
+02/12/2024  08:04 pm    <DIR>          MySQL
+11/11/2024  08:23 am    <DIR>          NetBeans
+16/12/2024  09:32 pm    <DIR>          NetEase
+21/05/2024  03:44 am    <DIR>          Notepad++
+08/12/2024  02:19 am    <DIR>          Notion
+20/04/2026  02:33 pm    <DIR>          npm
+22/08/2023  11:12 am    <DIR>          NuGet
+07/05/2026  05:54 pm    <DIR>          NVIDIA
+07/06/2026  10:20 pm    <DIR>          obs-studio
+28/07/2023  06:25 pm    <DIR>          OpenRGB
+28/07/2023  10:06 pm    <DIR>          Opera Software
+04/04/2026  08:34 am    <DIR>          OptiscalerClient
+23/04/2026  01:05 am    <DIR>          org.getlantern
+08/01/2026  07:30 am    <DIR>          osu
+01/08/2023  12:03 am    <DIR>          Overwolf
+02/12/2025  08:32 pm    <DIR>          ow-electron
+07/06/2026  10:20 pm    <DIR>          Pearl Abyss Launcher
+22/10/2023  04:24 pm    <DIR>          Pi Network
+28/11/2023  01:52 am    <DIR>          Planet9Stub
+01/01/2026  10:38 pm    <DIR>          PollyMC
+21/05/2024  01:39 am    <DIR>          ProcessLasso
+16/05/2026  02:17 am    <DIR>          ProcWatch
+03/02/2026  10:28 pm    <DIR>          Python
+29/12/2025  03:40 am    <DIR>          RenPy
+29/04/2026  11:38 pm    <DIR>          Riot Client
+29/04/2026  11:38 pm    <DIR>          riot-client-ux
+14/10/2023  08:27 pm    <DIR>          Sun
+23/04/2026  12:33 am    <DIR>          Telegram Desktop
+26/11/2023  06:50 pm    <DIR>          Topaz Labs LLC
+23/04/2026  08:45 pm    <DIR>          UnWaiver
+23/04/2026  08:45 pm    <DIR>          UnWaiver-dev.exe
+08/04/2026  07:27 am    <DIR>          uTorrent Web
+08/06/2026  04:28 pm    <DIR>          ViberPC
+17/08/2023  09:18 pm    <DIR>          Visual Studio Setup
+07/06/2026  10:17 pm    <DIR>          vlc
+05/07/2025  09:52 pm    <DIR>          Void
+26/11/2024  08:38 pm    <DIR>          vscode-react-native
+02/05/2024  11:10 pm    <DIR>          WebTorrent
+01/01/2024  04:39 am    <DIR>          WeMod
+31/03/2026  06:08 pm    <DIR>          winkeylock
+25/12/2023  02:00 am    <DIR>          WinRAR
+04/10/2025  01:20 am    <DIR>          WorldBox
+25/05/2026  09:42 pm    <DIR>          YouTube Music Desktop App
+               5 File(s)          2,319 bytes
+             108 Dir(s)  25,231,720,448 bytes free
+ 
+Checking if Claude folder exists: 
+The system cannot find the file specified.
+ 
+Checking username: 
+Arjie 
+C:\Users\Arjie 
+C:\Users\Arjie\AppData\Roaming 
+ 
+Done. 
