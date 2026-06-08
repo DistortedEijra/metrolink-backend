@@ -13,6 +13,8 @@ rem Bump cache-busting version so browsers fetch the new app.css/app.js instead 
 for /f %%v in ('powershell -NoProfile -Command "[DateTimeOffset]::UtcNow.ToUnixTimeSeconds()"') do set CACHEVER=%%v
 powershell -NoProfile -Command "(Get-Content '%SRC%\index.html') -replace '\?v=\d+', '?v=%CACHEVER%' | Set-Content '%SRC%\index.html'"
 copy /Y "%SRC%\index.html" "%DEST%\index.html"
+if not exist "%DEST%\WEB-INF" mkdir "%DEST%\WEB-INF"
+copy /Y "%SRC%\WEB-INF\web.xml" "%DEST%\WEB-INF\web.xml"
 echo.
 echo All done! Check results:
 dir "%DEST%"
