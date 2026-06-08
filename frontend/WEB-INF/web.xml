@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="https://jakarta.ee/xml/ns/jakartaee"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="https://jakarta.ee/xml/ns/jakartaee https://jakarta.ee/xml/ns/jakartaee/web-app_6_0.xsd"
+         version="6.0">
+
+  <!--
+    index.html must always be revalidated so the browser picks up the
+    cache-busted asset URLs (app.js?v=..., app.css?v=...) on every deploy.
+    The versioned assets themselves are safe to cache long-term, since a
+    new deploy gives them a new URL.
+  -->
+  <filter>
+    <filter-name>ExpiresFilter</filter-name>
+    <filter-class>org.apache.catalina.filters.ExpiresFilter</filter-class>
+    <init-param>
+      <param-name>ExpiresByType text/html</param-name>
+      <param-value>access plus 0 seconds</param-value>
+    </init-param>
+    <init-param>
+      <param-name>ExpiresByType application/javascript</param-name>
+      <param-value>access plus 1 year</param-value>
+    </init-param>
+    <init-param>
+      <param-name>ExpiresByType text/javascript</param-name>
+      <param-value>access plus 1 year</param-value>
+    </init-param>
+    <init-param>
+      <param-name>ExpiresByType text/css</param-name>
+      <param-value>access plus 1 year</param-value>
+    </init-param>
+    <init-param>
+      <param-name>ExpiresByType image/jpeg</param-name>
+      <param-value>access plus 1 year</param-value>
+    </init-param>
+  </filter>
+  <filter-mapping>
+    <filter-name>ExpiresFilter</filter-name>
+    <url-pattern>/*</url-pattern>
+    <dispatcher>REQUEST</dispatcher>
+  </filter-mapping>
+
+</web-app>

@@ -49,25 +49,78 @@ async function api(path, method = 'GET', body = null) {
 
 // ── Toast ──────────────────────────────────────────────────
 function toast(msg, type = 'success') {
+  const icons = { success: 'fa-check-circle', danger: 'fa-exclamation-circle',
+                  warning: 'fa-exclamation-triangle', info: 'fa-info-circle' };
   const el  = document.getElementById('toast');
   const txt = document.getElementById('toastMsg');
   el.className = `toast align-items-center text-white border-0 bg-${type}`;
-  txt.textContent = msg;
+  txt.innerHTML = `<i class="fas ${icons[type] || 'fa-info-circle'} me-2"></i>${msg}`;
   bootstrap.Toast.getOrCreateInstance(el, { delay: 3500 }).show();
+}
+
+// ── Custom confirm modal (replaces native confirm()) ───────
+function confirmModal(title, message, confirmText = 'Confirm', confirmClass = 'btn-danger') {
+  return new Promise(resolve => {
+    let modalEl = document.getElementById('_confirmModal');
+    if (!modalEl) {
+      const div = document.createElement('div');
+      div.innerHTML = `
+        <div class="modal fade" id="_confirmModal" tabindex="-1" aria-modal="true">
+          <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="_confirmTitle"></h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body small" id="_confirmBody"></div>
+              <div class="modal-footer border-0 pt-1">
+                <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button class="btn btn-sm" id="_confirmOk"></button>
+              </div>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(div.firstElementChild);
+      modalEl = document.getElementById('_confirmModal');
+    }
+    document.getElementById('_confirmTitle').textContent = title;
+    document.getElementById('_confirmBody').textContent  = message;
+    const okBtn = document.getElementById('_confirmOk');
+    okBtn.textContent = confirmText;
+    okBtn.className   = `btn btn-sm ${confirmClass}`;
+
+    const fresh = okBtn.cloneNode(true);
+    okBtn.parentNode.replaceChild(fresh, okBtn);
+
+    const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    let resolved = false;
+
+    fresh.addEventListener('click', () => { resolved = true; modal.hide(); resolve(true); });
+    modalEl.addEventListener('hidden.bs.modal', () => { if (!resolved) resolve(false); }, { once: true });
+    modal.show();
+  });
 }
 
 // ── Format helpers ─────────────────────────────────────────
 const peso = v => v == null ? '—' : '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 const dash = v => v == null || v === '' ? '—' : v;
 
+// ── Row count helper ───────────────────────────────────────
+function setRowCount(containerId, count, label = 'record') {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  el.textContent = count === 0 ? 'No records' : `${count} ${label}${count !== 1 ? 's' : ''}`;
+}
+
 // ── Navigate ───────────────────────────────────────────────
 function go(page) {
   if (!getToken() && page !== 'login') { renderLogin(); return; }
   if (getToken() && page === 'login')  { go('dashboard'); return; }
   currentPage = page;
+  window.scrollTo({ top: 0, behavior: 'instant' });
   const map = { login: renderLogin, dashboard: renderDashboard, trips: renderTrips, employees: renderEmployees,
                 buses: renderBuses, reports: renderReports, finance: renderFinance, users: renderUsers,
-                backup: renderBackup, audit: renderAudit };
+                backup: renderBackup, audit: renderAudit, help: renderHelp };
   (map[page] || (() => toast('Unknown page', 'warning')))();
 }
 
@@ -80,6 +133,7 @@ function shell(activePage, content) {
     { id: 'employees', icon: 'fa-users',         label: 'Employees' },
     { id: 'buses',     icon: 'fa-bus',           label: 'Buses' },
     { id: 'reports',   icon: 'fa-chart-bar',     label: 'Reports' },
+    { id: 'help',      icon: 'fa-circle-question', label: 'Help' },
   ];
   if (isAdmin()) {
     nav.push({ id: 'finance', icon: 'fa-money-bill-wave',  label: 'Finance' });
@@ -100,6 +154,7 @@ function shell(activePage, content) {
           <div class="brand-icon"><i class="fas fa-bus-alt"></i></div>
           <h6>METROLINK FOMS</h6>
           <small>Baclaran Bus Corp.</small>
+          <div class="brand-status"><span class="status-dot"></span>System Online</div>
         </div>
         <nav class="sidebar-nav">${navHtml}</nav>
         <div class="sidebar-footer">
@@ -112,7 +167,17 @@ function shell(activePage, content) {
     </div>`;
 }
 
-function logout() { clearSession(); renderLogin(); }
+async function logout() {
+  const ok = await confirmModal(
+    'Log Out',
+    'Are you sure you want to log out of Metrolink FOMS?',
+    'Log Out',
+    'btn-danger'
+  );
+  if (!ok) return;
+  clearSession();
+  renderLogin();
+}
 
 // ══════════════════════════════════════════════════════════
 // LOGIN
@@ -120,38 +185,91 @@ function logout() { clearSession(); renderLogin(); }
 function renderLogin() {
   document.getElementById('app').innerHTML = `
     <div class="login-wrapper">
-      <div class="login-card">
-        <div class="login-logo">
-          <div class="logo-circle"><i class="fas fa-bus-alt"></i></div>
-          <h5>Metrolink FOMS</h5>
-          <small>Financial & Operational Management System</small>
+      <div class="login-split">
+
+        <!-- Left panel — branded hero -->
+        <div class="login-hero">
+          <!-- Decorative pill shapes -->
+          <div class="login-deco">
+            <span class="deco-pill p1"></span>
+            <span class="deco-pill p2"></span>
+            <span class="deco-pill p3"></span>
+            <span class="deco-pill p4"></span>
+            <span class="deco-pill p5"></span>
+            <span class="deco-pill p6"></span>
+          </div>
+          <div class="login-hero-content">
+            <div class="hero-icon"><i class="fas fa-bus-alt"></i></div>
+            <h2>Metrolink FOMS</h2>
+            <p>Financial & Operational Management System for Baclaran Bus Corporation. Monitor trips, payroll, and revenue in real time.</p>
+            <div class="hero-badges">
+              <span><i class="fas fa-route me-1"></i>Trip Tracking</span>
+              <span><i class="fas fa-coins me-1"></i>Finance</span>
+              <span><i class="fas fa-users me-1"></i>HR</span>
+            </div>
+          </div>
         </div>
-        <form onsubmit="doLogin(event)">
-          <div class="mb-3">
-            <label class="form-label">Username</label>
-            <div class="input-group">
-              <span class="input-group-text"><i class="fas fa-user text-muted"></i></span>
-              <input type="text" id="loginUser" class="form-control" placeholder="Enter username" required autofocus>
+
+        <!-- Right panel — form -->
+        <div class="login-form-panel">
+          <div class="login-form-inner">
+            <div class="login-form-header">
+              <div class="lf-logo"><i class="fas fa-bus-alt"></i></div>
+              <h5>USER LOGIN</h5>
+              <p>Sign in to your account to continue</p>
             </div>
+            <form onsubmit="doLogin(event)">
+              <div class="mb-3">
+                <label class="form-label">Username</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-user"></i></span>
+                  <input type="text" id="loginUser" class="form-control" placeholder="Enter username" required autofocus>
+                </div>
+              </div>
+              <div class="mb-4">
+                <label class="form-label">Password</label>
+                <div class="input-group">
+                  <span class="input-group-text"><i class="fas fa-lock"></i></span>
+                  <input type="password" id="loginPass" class="form-control" placeholder="Enter password" required>
+                  <button type="button" class="btn btn-pass-toggle" onclick="toggleLoginPass(this)" tabindex="-1" title="Show/hide password">
+                    <i class="fas fa-eye"></i>
+                  </button>
+                </div>
+              </div>
+              <button type="submit" class="btn btn-login-submit w-100" id="loginBtn">
+                <i class="fas fa-sign-in-alt me-2"></i>LOGIN
+              </button>
+              <div id="loginError" class="alert alert-danger d-none mt-3 py-2 px-3" role="alert" style="font-size:0.85rem">
+                <i class="fas fa-exclamation-circle me-2"></i><span id="loginErrorMsg"></span>
+              </div>
+            </form>
           </div>
-          <div class="mb-4">
-            <label class="form-label">Password</label>
-            <div class="input-group">
-              <span class="input-group-text"><i class="fas fa-lock text-muted"></i></span>
-              <input type="password" id="loginPass" class="form-control" placeholder="Enter password" required>
-            </div>
-          </div>
-          <button type="submit" class="btn btn-primary w-100 fw-semibold" id="loginBtn">
-            <i class="fas fa-sign-in-alt me-2"></i>Login
-          </button>
-        </form>
+        </div>
+
       </div>
     </div>`;
 }
 
+function toggleLoginPass(btn) {
+  const input = document.getElementById('loginPass');
+  const icon  = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'fas fa-eye-slash';
+    btn.title = 'Hide password';
+  } else {
+    input.type = 'password';
+    icon.className = 'fas fa-eye';
+    btn.title = 'Show password';
+  }
+}
+
 async function doLogin(e) {
   e.preventDefault();
-  const btn = document.getElementById('loginBtn');
+  const btn    = document.getElementById('loginBtn');
+  const errDiv = document.getElementById('loginError');
+  const errMsg = document.getElementById('loginErrorMsg');
+  if (errDiv) errDiv.classList.add('d-none');
   btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Logging in…';
   try {
     const data = await api('/auth/login', 'POST', {
@@ -160,6 +278,11 @@ async function doLogin(e) {
     });
     saveSession(data);
     go('trips');
+  } catch (err) {
+    if (errDiv && errMsg) {
+      errMsg.textContent = err.message || 'Invalid username or password.';
+      errDiv.classList.remove('d-none');
+    }
   } finally {
     if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Login'; }
   }
@@ -185,9 +308,10 @@ async function renderTrips() {
           placeholder="Search bus, driver…" oninput="searchTrips(this.value)">
         <input type="date" id="tripDateFilter" class="form-control form-control-sm" style="max-width:160px"
           onchange="filterByDate(this.value)">
-        <button class="btn btn-outline-secondary btn-sm" onclick="renderTrips()">
+        <button class="btn btn-outline-secondary btn-sm" onclick="renderTrips()" title="Refresh">
           <i class="fas fa-sync-alt"></i>
         </button>
+        <span class="row-count-badge ms-auto" id="tripCount"></span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover mb-0" id="tripTable">
@@ -219,6 +343,7 @@ async function renderTrips() {
 function renderTripRows(rows) {
   const tbody = document.getElementById('tripBody');
   if (!tbody) return;
+  setRowCount('tripCount', rows.length, 'trip');
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="9" class="table-empty"><i class="fas fa-route"></i>No trips found</td></tr>`;
     return;
@@ -418,6 +543,11 @@ async function saveTripDetails() {
 
   if (!body.tripDate || !body.busId || !body.driverId || !body.conductorId || !body.dispatchTime) {
     toast('Please fill all required fields', 'warning'); return false;
+  }
+
+  if (tripModalMode === 'edit' && savedTripId) {
+    const ok = await confirmModal('Update Trip', 'Save changes to this trip?', 'Save Changes', 'btn-primary');
+    if (!ok) return false;
   }
 
   try {
@@ -656,6 +786,7 @@ async function renderEmployees() {
           <option value="DRIVER">Driver</option>
           <option value="CONDUCTOR">Conductor</option>
         </select>
+        <span class="row-count-badge ms-auto" id="empCount"></span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover mb-0">
@@ -678,6 +809,7 @@ async function renderEmployees() {
 function renderEmployeeRows(rows) {
   const tbody = document.getElementById('empBody');
   if (!tbody) return;
+  setRowCount('empCount', rows.length, 'employee');
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="8" class="table-empty"><i class="fas fa-users"></i>No employees found</td></tr>`;
     return;
@@ -816,6 +948,10 @@ async function saveEmployee() {
     biMonthlyRate: isDaily ? null : rateVal
   };
   if (!body.fullName) { toast('Full name is required', 'warning'); return; }
+  if (id) {
+    const ok = await confirmModal('Update Employee', 'Save changes to this employee record?', 'Save Changes', 'btn-primary');
+    if (!ok) return;
+  }
   try {
     if (id) { await api(`/employees/${id}`, 'PUT', body); toast('Employee updated'); }
     else    { await api('/employees', 'POST', body); toast('Employee added'); }
@@ -825,7 +961,13 @@ async function saveEmployee() {
 }
 
 async function toggleEmployee(id, active) {
-  if (!confirm(`${active ? 'Activate' : 'Deactivate'} this employee?`)) return;
+  const ok = await confirmModal(
+    `${active ? 'Activate' : 'Deactivate'} Employee`,
+    `Are you sure you want to ${active ? 'activate' : 'deactivate'} this employee?`,
+    active ? 'Activate' : 'Deactivate',
+    active ? 'btn-success' : 'btn-danger'
+  );
+  if (!ok) return;
   try {
     await api(`/employees/${id}/status`, 'PATCH', { isActive: active });
     toast(`Employee ${active ? 'activated' : 'deactivated'}`);
@@ -945,6 +1087,10 @@ async function saveBus() {
     model:     document.getElementById('busModel').value.trim()
   };
   if (!body.busNumber || !body.plateNo) { toast('Bus number and plate are required', 'warning'); return; }
+  if (id) {
+    const ok = await confirmModal('Update Bus', 'Save changes to this bus record?', 'Save Changes', 'btn-primary');
+    if (!ok) return;
+  }
   try {
     if (id) { await api(`/buses/${id}`, 'PUT', body); toast('Bus updated'); }
     else    { await api('/buses', 'POST', body); toast('Bus added'); }
@@ -954,8 +1100,15 @@ async function saveBus() {
 }
 
 async function setBusStatus(id, status) {
-  const labels = { ACTIVE: 'Activate', INACTIVE: 'Deactivate', MAINTENANCE: 'Set Under Maintenance' };
-  if (!confirm(`${labels[status] || status} this bus?`)) return;
+  const labels  = { ACTIVE: 'Activate', INACTIVE: 'Deactivate', MAINTENANCE: 'Set Under Maintenance' };
+  const classes = { ACTIVE: 'btn-success', INACTIVE: 'btn-danger', MAINTENANCE: 'btn-warning' };
+  const ok = await confirmModal(
+    `${labels[status] || status} Bus`,
+    `Are you sure you want to ${(labels[status] || status).toLowerCase()} this bus?`,
+    labels[status] || status,
+    classes[status] || 'btn-secondary'
+  );
+  if (!ok) return;
   try {
     await api(`/buses/${id}/status`, 'PATCH', { status });
     toast(`Bus status updated to ${status.toLowerCase()}`);
@@ -1076,6 +1229,142 @@ async function loadReport(type) {
   } catch {
     cont.innerHTML = '<div class="alert alert-danger">Failed to load report.</div>';
   }
+}
+
+// ══════════════════════════════════════════════════════════
+// HELP / USER GUIDE
+// ══════════════════════════════════════════════════════════
+const FEATURE_GUIDE = [
+  {
+    id: 'dashboard', icon: 'fa-th-large', title: 'Dashboard', roles: ['ADMIN', 'STAFF'],
+    summary: 'Your landing page — a quick overview of company performance: trip volume, income, expenses and profit trends.',
+    steps: [
+      'Open from the sidebar — this is also the page you land on after logging in.',
+      'Check the stat cards at the top for at-a-glance totals (trips, gross income, expenses, profit).',
+      'Use the charts to spot trends in trip volume and income over time.',
+      'Admins additionally see a "Recent Activity" panel showing the latest changes made across the system.',
+    ],
+  },
+  {
+    id: 'trips', icon: 'fa-route', title: 'Trip Management', roles: ['ADMIN', 'STAFF'],
+    summary: 'Record each bus trip for the day, including the bus, crew, and the income/expenses it generated.',
+    steps: [
+      'Click "Add Trip" and fill in the trip date, bus number, driver, conductor, and income/expense details across the form tabs.',
+      'Save the trip — it will appear in the table, which you can search by bus/driver or filter by date.',
+      'Use the refresh button to reload the latest trips from the server.',
+      'Admins can click the edit icon on any row to correct a previously logged trip; edits are tracked and flagged as "Modified".',
+    ],
+  },
+  {
+    id: 'employees', icon: 'fa-users', title: 'Employees', roles: ['ADMIN', 'STAFF'],
+    summary: 'Browse the roster of drivers, conductors and other staff, including their rates and status.',
+    steps: [
+      'Search by name/code or filter by position (Driver/Conductor) using the toolbar above the table.',
+      'Each row shows the employee\'s code, position badge, daily/bi-monthly rate, and active/inactive status.',
+      'Admins can click "Add Employee" to register a new staff member, the edit icon to update their details, and the toggle icon to activate or deactivate an account.',
+    ],
+  },
+  {
+    id: 'buses', icon: 'fa-bus', title: 'Buses', roles: ['ADMIN', 'STAFF'],
+    summary: 'View the bus fleet and each unit\'s current operating status.',
+    steps: [
+      'Browse the table to see every bus number and whether it is currently active or inactive.',
+      'Admins can click "Add Bus" to register a new unit, the edit icon to update its details, and the toggle icon to mark it active or inactive.',
+    ],
+  },
+  {
+    id: 'reports', icon: 'fa-chart-bar', title: 'Reports', roles: ['ADMIN', 'STAFF'],
+    summary: 'Generate financial and operational summaries for any date range.',
+    steps: [
+      'Pick a "From" and "To" date, then choose a report type:',
+      '"Summary" — totals for trips, gross/net income, expenses and profit for the period.',
+      '"Trip Report" — a per-trip breakdown of income, expenses and profit.',
+      '"Low Income" — flags trips that fell below the ₱13,000 quota so they can be reviewed.',
+      'Admins additionally have a "Changelogs" report showing which trips were edited, by whom, and when.',
+    ],
+  },
+  {
+    id: 'finance', icon: 'fa-money-bill-wave', title: 'Finance', roles: ['ADMIN'],
+    summary: 'Manage payroll and monitor company treasury — admin only.',
+    steps: [
+      'Use the period navigator (◀ ▶) at the top to move between bi-monthly pay periods.',
+      '"Daily Payroll" — review computed pay for drivers/conductors based on logged trips, and mark records as paid.',
+      '"Bi-Monthly" — review and process bi-monthly salaries for other staff positions.',
+      '"Company Treasury" — view the running balance of company income versus expenses and payouts.',
+      'Click the green check icon next to a pending payroll record to mark it as paid once disbursed.',
+    ],
+  },
+  {
+    id: 'users', icon: 'fa-user-cog', title: 'Staff Accounts', roles: ['ADMIN'],
+    summary: 'Create and manage the login accounts that can access this system — admin only.',
+    steps: [
+      'Click "Add User" to register a new account — set their username, full name, password and role (Admin or Staff).',
+      'Use the edit icon to update an account\'s details or reset its password.',
+      'Assign the "Staff" role for day-to-day operational access, or "Admin" for full access including Finance, Staff Accounts, Audit Log and Backup.',
+    ],
+  },
+  {
+    id: 'audit', icon: 'fa-clipboard-list', title: 'Audit Log', roles: ['ADMIN'],
+    summary: 'A read-only history of important changes made across the system — admin only.',
+    steps: [
+      'Pick a date range to view who changed what and when (e.g. trip edits, account changes).',
+      'Use this page to investigate discrepancies or confirm that a particular change was made by the expected person.',
+    ],
+  },
+  {
+    id: 'backup', icon: 'fa-database', title: 'Backup', roles: ['ADMIN'],
+    summary: 'Generate a downloadable snapshot of the entire database — admin only.',
+    steps: [
+      'Click "Generate & Download Backup" to run a database dump and download a .sql file containing all current data.',
+      'Store the downloaded file somewhere safe — it can be used to restore the system in case of data loss.',
+    ],
+  },
+];
+
+function helpAccordionItem(f, index) {
+  const collapseId = `help-collapse-${f.id}`;
+  const headingId  = `help-heading-${f.id}`;
+  return `
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="${headingId}">
+        <button class="accordion-button ${index === 0 ? '' : 'collapsed'}" type="button"
+          data-bs-toggle="collapse" data-bs-target="#${collapseId}"
+          aria-expanded="${index === 0 ? 'true' : 'false'}" aria-controls="${collapseId}">
+          <i class="fas ${f.icon} me-2 text-primary"></i><strong>${f.title}</strong>
+          ${f.roles.length === 1 ? '<span class="status-badge status-admin ms-2">Admin only</span>' : ''}
+        </button>
+      </h2>
+      <div id="${collapseId}" class="accordion-collapse collapse ${index === 0 ? 'show' : ''}"
+        aria-labelledby="${headingId}" data-bs-parent="#helpAccordion">
+        <div class="accordion-body">
+          <p class="text-muted mb-2">${f.summary}</p>
+          <ol class="mb-0 ps-3">
+            ${f.steps.map(s => `<li class="mb-1">${s}</li>`).join('')}
+          </ol>
+        </div>
+      </div>
+    </div>`;
+}
+
+async function renderHelp() {
+  const admin = isAdmin();
+  const items = FEATURE_GUIDE.filter(f => f.roles.includes(admin ? 'ADMIN' : 'STAFF'));
+
+  shell('help', `
+    <div class="page-header">
+      <div><h4><i class="fas fa-circle-question me-2"></i>Help &amp; User Guide</h4>
+        <div class="subtitle">How to use Metrolink FOMS — tailored to your role</div></div>
+    </div>
+    <div class="alert alert-info py-2 px-3 mb-3" style="font-size:0.8rem">
+      <i class="fas fa-circle-info me-1"></i>
+      You're signed in as <strong>${admin ? 'Admin' : 'Staff'}</strong>. This guide only lists the features
+      available to your account${admin ? '' : ' — Finance, Staff Accounts, Audit Log and Backup are restricted to admins'}.
+    </div>
+    <div class="content-card">
+      <div class="accordion" id="helpAccordion">
+        ${items.map((f, i) => helpAccordionItem(f, i)).join('')}
+      </div>
+    </div>`);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1234,6 +1523,10 @@ function openEditUser(id) {
 
 async function saveUser() {
   const id = document.getElementById('userId').value;
+  if (id) {
+    const ok = await confirmModal('Update Staff Account', 'Save changes to this staff account?', 'Save Changes', 'btn-primary');
+    if (!ok) return;
+  }
   try {
     if (id) {
       await api(`/users/${id}`, 'PUT', {
@@ -1272,6 +1565,8 @@ async function savePassword() {
   const id = document.getElementById('passUserId').value;
   const pw = document.getElementById('newPassword').value;
   if (!pw) { toast('Enter a new password', 'warning'); return; }
+  const ok = await confirmModal('Change Password', 'Are you sure you want to change this password?', 'Change Password', 'btn-warning');
+  if (!ok) return;
   try {
     await api(`/users/${id}/password`, 'PATCH', { newPassword: pw });
     toast('Password changed');
@@ -1280,7 +1575,13 @@ async function savePassword() {
 }
 
 async function toggleUser(id, active) {
-  if (!confirm(`${active ? 'Activate' : 'Deactivate'} this account?`)) return;
+  const ok = await confirmModal(
+    `${active ? 'Activate' : 'Deactivate'} Account`,
+    `Are you sure you want to ${active ? 'activate' : 'deactivate'} this user account?`,
+    active ? 'Activate' : 'Deactivate',
+    active ? 'btn-success' : 'btn-danger'
+  );
+  if (!ok) return;
   try {
     await api(`/users/${id}/status`, 'PATCH', { isActive: active });
     toast(`Account ${active ? 'activated' : 'deactivated'}`);
@@ -1415,14 +1716,16 @@ async function loadAuditLog() {
 // ══════════════════════════════════════════════════════════
 // DASHBOARD
 // ══════════════════════════════════════════════════════════
-let _dashChart = null;
+let _dashChart = null, _dashChart2 = null, _dashChart3 = null;
 
 async function renderDashboard() {
-  const user  = getUser();
-  const today = new Date().toISOString().split('T')[0];
-  const mtdStart = today.slice(0, 8) + '01';
-  const sevenAgo = new Date(Date.now() - 6 * 864e5).toISOString().split('T')[0];
-  const dateLabel = new Date().toLocaleDateString('en-PH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+  const user        = getUser();
+  const today       = new Date().toISOString().split('T')[0];
+  const mtdStart    = today.slice(0, 8) + '01';
+  const sevenAgo    = new Date(Date.now() -  6 * 864e5).toISOString().split('T')[0];
+  const fourteenAgo = new Date(Date.now() - 13 * 864e5).toISOString().split('T')[0];
+  const fourWeekAgo = new Date(Date.now() - 27 * 864e5).toISOString().split('T')[0];
+  const dateLabel   = new Date().toLocaleDateString('en-PH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
 
   shell('dashboard', `
     <div class="page-header">
@@ -1431,32 +1734,54 @@ async function renderDashboard() {
         <div class="subtitle">${dateLabel}</div>
       </div>
     </div>
-    <div class="dash-welcome mb-3 d-flex align-items-center gap-3">
+    <div class="dash-welcome mb-3">
       <div>
         <div class="dash-name">Welcome back, ${user?.fullName || user?.username || 'User'}!</div>
         <div class="dash-role"><i class="fas fa-id-badge me-1"></i>${user?.role || ''}</div>
       </div>
+      <div class="dash-welcome-date">
+        ${new Date().toLocaleDateString('en-PH',{weekday:'long',year:'numeric',month:'long',day:'numeric'})}
+      </div>
     </div>
     <div class="row g-3 mb-3" id="dashStats">
-      <div class="col-6 col-md-3"><div class="stat-card blue"><div class="stat-label">Gross Income (MTD)</div><div class="stat-value" id="dGross">—</div><div class="dash-stat-trend neutral" id="dGrossTrend"></div></div></div>
-      <div class="col-6 col-md-3"><div class="stat-card purple"><div class="stat-label">Total Trips (MTD)</div><div class="stat-value" id="dTrips">—</div><div class="dash-stat-trend neutral" id="dTripsTrend"></div></div></div>
-      <div class="col-6 col-md-3"><div class="stat-card red"><div class="stat-label">Total Expenses (MTD)</div><div class="stat-value" id="dExp">—</div><div class="dash-stat-trend neutral" id="dExpTrend"></div></div></div>
-      <div class="col-6 col-md-3"><div class="stat-card green"><div class="stat-label">Net Profit (MTD)</div><div class="stat-value" id="dProfit">—</div><div class="dash-stat-trend neutral" id="dProfitTrend"></div></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card blue"><div class="stat-label">Gross Income (MTD)</div><div class="stat-value" id="dGross">—</div><i class="fas fa-coins stat-icon-bg"></i></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card purple"><div class="stat-label">Total Trips (MTD)</div><div class="stat-value" id="dTrips">—</div><i class="fas fa-route stat-icon-bg"></i></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card red"><div class="stat-label">Total Expenses (MTD)</div><div class="stat-value" id="dExp">—</div><i class="fas fa-receipt stat-icon-bg"></i></div></div>
+      <div class="col-6 col-md-3"><div class="stat-card green"><div class="stat-label">Net Profit (MTD)</div><div class="stat-value" id="dProfit">—</div><i class="fas fa-chart-line stat-icon-bg"></i></div></div>
     </div>
+
+    <!-- Row 1: Income vs Expenses line chart + Today's Trips -->
     <div class="row g-3 mb-3">
-      <div class="col-md-7">
+      <div class="col-md-8">
         <div class="content-card p-3">
-          <div class="dash-section-label">Gross Income vs Net Profit — Last 7 Days</div>
-          <div class="dash-chart-wrap"><canvas id="dashChart"></canvas></div>
+          <div class="dash-section-label">Income vs. Expenses — Last 14 Days</div>
+          <div class="dash-chart-wrap tall"><canvas id="dashChart"></canvas></div>
         </div>
       </div>
-      <div class="col-md-5">
+      <div class="col-md-4">
         <div class="content-card p-3" style="max-height:300px;overflow-y:auto">
           <div class="dash-section-label">Today's Trips</div>
           <div id="dashTodayTrips"><div class="text-muted small">Loading…</div></div>
         </div>
       </div>
     </div>
+
+    <!-- Row 2: Trip Volume by Day of Week + Payroll Breakdown -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-6">
+        <div class="content-card p-3">
+          <div class="dash-section-label">Trip Volume by Day of Week — Last 4 Weeks</div>
+          <div class="dash-chart-wrap"><canvas id="dashChart2"></canvas></div>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="content-card p-3">
+          <div class="dash-section-label">Payroll Cost Breakdown (MTD)</div>
+          <div class="dash-chart-wrap" id="dashChart3Wrap"><canvas id="dashChart3"></canvas></div>
+        </div>
+      </div>
+    </div>
+
     ${isAdmin() ? `
     <div class="content-card p-3 mb-3">
       <div class="dash-section-label">Recent Activity</div>
@@ -1464,56 +1789,176 @@ async function renderDashboard() {
     </div>` : ''}
   `);
 
-  if (_dashChart) { _dashChart.destroy(); _dashChart = null; }
+  [_dashChart, _dashChart2, _dashChart3].forEach(c => { if (c) c.destroy(); });
+  _dashChart = _dashChart2 = _dashChart3 = null;
 
   try {
-    const [summary, todayTrips, tripReport, auditLog] = await Promise.all([
+    const [summary, todayTrips, tripReport14, tripReport28, payrollSummary, auditLog] = await Promise.all([
       api(`/reports/summary?from=${mtdStart}&to=${today}`),
       api(`/trips/date?date=${today}`),
-      api(`/reports/trips?from=${sevenAgo}&to=${today}`),
+      api(`/reports/trips?from=${fourteenAgo}&to=${today}`),
+      api(`/reports/trips?from=${fourWeekAgo}&to=${today}`),
+      isAdmin() ? api(`/payroll/summary?from=${mtdStart}&to=${today}`) : Promise.resolve(null),
       isAdmin() ? api(`/audit?from=${sevenAgo}&to=${today}`) : Promise.resolve([])
     ]);
 
-    // Stat cards
+    // ── Stat cards ──
     document.getElementById('dGross').textContent  = peso(summary.totalGrossIncome);
     document.getElementById('dTrips').textContent  = summary.totalTrips ?? '0';
     document.getElementById('dExp').textContent    = peso(summary.totalExpenses);
     document.getElementById('dProfit').textContent = peso(summary.totalNetProfit);
 
-    // Chart — group trip report by date
-    const byDate = {};
-    (tripReport || []).forEach(r => {
+    // ── Chart 1: Income vs Expenses — last 14 days ──
+    const byDate14 = {};
+    (tripReport14 || []).forEach(r => {
       const d = r.tripDate;
-      if (!byDate[d]) byDate[d] = { gross: 0, profit: 0 };
-      byDate[d].gross  += Number(r.grossIncome  || 0);
-      byDate[d].profit += Number(r.netProfit    || 0);
+      if (!byDate14[d]) byDate14[d] = { gross: 0, exp: 0, profit: 0 };
+      const g = Number(r.grossIncome || 0);
+      const p = Number(r.netProfit   || 0);
+      byDate14[d].gross  += g;
+      byDate14[d].exp    += (g - p);
+      byDate14[d].profit += p;
     });
-    const labels  = [];
-    const grossArr = [], profitArr = [];
-    for (let i = 6; i >= 0; i--) {
+    const labels14 = [], grossArr = [], expArr = [], profitArr = [];
+    for (let i = 13; i >= 0; i--) {
       const d = new Date(Date.now() - i * 864e5).toISOString().split('T')[0];
-      labels.push(new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month:'short', day:'numeric' }));
-      grossArr.push(byDate[d]?.gross  || 0);
-      profitArr.push(byDate[d]?.profit || 0);
+      labels14.push(new Date(d + 'T00:00:00').toLocaleDateString('en-PH', { month:'short', day:'numeric' }));
+      grossArr.push(byDate14[d]?.gross  || 0);
+      expArr.push(byDate14[d]?.exp      || 0);
+      profitArr.push(byDate14[d]?.profit || 0);
     }
-    const ctx = document.getElementById('dashChart').getContext('2d');
-    _dashChart = new Chart(ctx, {
-      type: 'bar',
+    _dashChart = new Chart(document.getElementById('dashChart').getContext('2d'), {
+      type: 'line',
       data: {
-        labels,
+        labels: labels14,
         datasets: [
-          { label: 'Gross Income', data: grossArr,  backgroundColor: 'rgba(30,136,229,0.7)',  borderRadius: 4 },
-          { label: 'Net Profit',   data: profitArr, backgroundColor: 'rgba(67,160,71,0.7)',   borderRadius: 4 }
+          { label: 'Gross Income', data: grossArr,  borderColor: '#1e88e5', backgroundColor: 'rgba(30,136,229,0.10)', tension: 0.4, fill: true,  pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#1e88e5', borderWidth: 2.5 },
+          { label: 'Expenses',     data: expArr,    borderColor: '#e53935', backgroundColor: 'rgba(229,57,53,0.08)',  tension: 0.4, fill: true,  pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#e53935', borderWidth: 2.5 },
+          { label: 'Net Profit',   data: profitArr, borderColor: '#43a047', backgroundColor: 'rgba(67,160,71,0.0)',  tension: 0.4, fill: false, pointRadius: 4, pointHoverRadius: 6, pointBackgroundColor: '#43a047', borderWidth: 2, borderDash: [6, 3] }
         ]
       },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend: { position: 'top', labels: { font: { size: 11 } } } },
-        scales: { y: { ticks: { callback: v => '₱' + Number(v).toLocaleString('en-PH') } } }
+        interaction: { mode: 'index', intersect: false },
+        plugins: {
+          legend: {
+            position: 'top', align: 'end',
+            labels: { font: { size: 11, weight: '500' }, boxWidth: 28, boxHeight: 3, padding: 16, usePointStyle: false }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(28,28,38,0.90)', titleFont: { size: 11 }, bodyFont: { size: 11 },
+            padding: 10, cornerRadius: 8, caretSize: 5,
+            callbacks: { label: ctx => ` ${ctx.dataset.label}: ₱${Number(ctx.raw).toLocaleString('en-PH')}` }
+          }
+        },
+        scales: {
+          x: {
+            grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+            ticks: { font: { size: 10 }, maxRotation: 40, color: '#9e9e9e' }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+            ticks: {
+              callback: v => { const n = Number(v); return n >= 1000 ? '₱' + (n / 1000).toFixed(n % 1000 === 0 ? 0 : 1) + 'k' : '₱' + n; },
+              font: { size: 10 }, color: '#9e9e9e', maxTicksLimit: 6
+            }
+          }
+        }
       }
     });
 
-    // Today's trips
+    // ── Chart 2: Trip Volume by Day of Week — last 28 days ──
+    const dayTotals = [0,0,0,0,0,0,0]; // Sun=0 … Sat=6
+    const dayCountedDates = {};
+    (tripReport28 || []).forEach(r => {
+      if (!dayCountedDates[r.tripDate]) dayCountedDates[r.tripDate] = 0;
+      dayCountedDates[r.tripDate]++;
+    });
+    Object.entries(dayCountedDates).forEach(([d, count]) => {
+      dayTotals[new Date(d + 'T00:00:00').getDay()] += count;
+    });
+    // Reorder Mon→Sun
+    const dowLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    const dowData   = [1,2,3,4,5,6,0].map(i => dayTotals[i]);
+    const dowColors = ['#3949ab','#3949ab','#3949ab','#3949ab','#3949ab','#f59e0b','#9fa8da'];
+    _dashChart2 = new Chart(document.getElementById('dashChart2').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: dowLabels,
+        datasets: [{
+          label: 'Total Trips', data: dowData,
+          backgroundColor: dowColors,
+          borderRadius: 8, borderSkipped: false,
+          hoverBackgroundColor: ['#283593','#283593','#283593','#283593','#283593','#d97706','#7986cb']
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: 'rgba(28,28,38,0.90)', bodyFont: { size: 11 },
+            padding: 10, cornerRadius: 8,
+            callbacks: { label: ctx => ` ${ctx.raw} trip${ctx.raw !== 1 ? 's' : ''}` }
+          }
+        },
+        scales: {
+          x: {
+            grid: { display: false, drawBorder: false },
+            ticks: { font: { size: 11, weight: '500' }, color: '#616161' }
+          },
+          y: {
+            beginAtZero: true,
+            grid: { color: 'rgba(0,0,0,0.05)', drawBorder: false },
+            ticks: { precision: 0, font: { size: 10 }, color: '#9e9e9e', maxTicksLimit: 5 }
+          }
+        }
+      }
+    });
+
+    // ── Chart 3: Payroll Cost Breakdown — donut ──
+    const wrap3 = document.getElementById('dashChart3Wrap');
+    if (isAdmin() && payrollSummary) {
+      const operWages = Number(payrollSummary.totalOperatorWages || 0);
+      const fixedPay  = Number(payrollSummary.fixedStaffPayroll  || 0);
+      const total     = operWages + fixedPay;
+      if (total > 0) {
+        _dashChart3 = new Chart(document.getElementById('dashChart3').getContext('2d'), {
+          type: 'doughnut',
+          data: {
+            labels: ['Drivers & Conductors', 'HR / Ops / Mechanic'],
+            datasets: [{
+              data: [operWages, fixedPay],
+              backgroundColor: ['#1e88e5', '#f97316'],
+              hoverBackgroundColor: ['#1565c0', '#ea6c00'],
+              hoverOffset: 8, borderWidth: 0, spacing: 3
+            }]
+          },
+          options: {
+            responsive: true, maintainAspectRatio: false,
+            cutout: '66%',
+            plugins: {
+              legend: {
+                position: 'bottom',
+                labels: { font: { size: 11, weight: '500' }, boxWidth: 12, boxHeight: 12, padding: 14, color: '#424242' }
+              },
+              tooltip: {
+                backgroundColor: 'rgba(28,28,38,0.90)', bodyFont: { size: 11 },
+                padding: 10, cornerRadius: 8,
+                callbacks: { label: ctx => ` ${peso(ctx.raw)} (${((ctx.raw / total) * 100).toFixed(1)}%)` }
+              }
+            }
+          }
+        });
+      } else {
+        if (wrap3) wrap3.innerHTML = '<div class="text-muted small text-center py-5">No payroll data for this period.</div>';
+      }
+    } else if (!isAdmin() && wrap3) {
+      wrap3.innerHTML = '<div class="text-muted small text-center py-5"><i class="fas fa-lock me-1"></i>Admin access required.</div>';
+    }
+
+    // ── Today's trips list ──
     const todayEl = document.getElementById('dashTodayTrips');
     if (todayEl) {
       todayEl.innerHTML = !todayTrips.length
@@ -1525,7 +1970,7 @@ async function renderDashboard() {
           </div>`).join('');
     }
 
-    // Recent activity (admin only)
+    // ── Recent activity (admin only) ──
     const actEl = document.getElementById('dashActivity');
     if (actEl) {
       const last5 = (auditLog || []).slice(0, 5);
@@ -1776,6 +2221,13 @@ async function loadBiMonthlyPayroll() {
 }
 
 async function generatePayroll(from, to, type) {
+  const ok = await confirmModal(
+    'Generate Payroll',
+    `Generate payroll records for the period ${from} to ${to}? Existing records for this period may be overwritten.`,
+    'Generate',
+    'btn-primary'
+  );
+  if (!ok) return;
   try {
     const r = await api('/payroll/generate', 'POST', { from, to });
     toast(`${r.generated} record(s) generated`);
@@ -1785,6 +2237,13 @@ async function generatePayroll(from, to, type) {
 }
 
 async function markPayrollPaid(id) {
+  const ok = await confirmModal(
+    'Mark as Paid',
+    'Mark this payroll record as paid? This action cannot be undone.',
+    'Mark as Paid',
+    'btn-success'
+  );
+  if (!ok) return;
   try {
     await api(`/payroll/${id}/pay`, 'PATCH');
     toast('Marked as paid');
