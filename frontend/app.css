@@ -352,7 +352,8 @@ body {
   margin-bottom: 1.5rem;
 }
 .page-header h4 {
-  color: var(--text-1); font-weight: 800; margin: 0 0 2px;
+  /* Sits on the dark navy app background, not a white card — needs a light color */
+  color: rgba(255,255,255,0.92); font-weight: 800; margin: 0 0 2px;
   font-size: 1.2rem; letter-spacing: -0.2px;
   position: relative; display: inline-block; padding-bottom: 6px;
 }
@@ -363,8 +364,8 @@ body {
   background: var(--accent);
   border-radius: 2px;
 }
-.page-header h4 i { color: var(--primary); }
-.page-header .subtitle { color: var(--text-3); font-size: 0.78rem; margin-top: 6px; }
+.page-header h4 i { color: var(--accent); }
+.page-header .subtitle { color: rgba(255,255,255,0.55); font-size: 0.78rem; margin-top: 6px; }
 
 /* ══ Cards ══════════════════════════════════════════════════ */
 .content-card {
