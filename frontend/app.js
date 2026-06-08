@@ -37,7 +37,14 @@ async function api(path, method = 'GET', body = null) {
     throw e;
   }
 
-  if (res.status === 401) { clearSession(); renderLogin(); throw new Error('Unauthorized'); }
+  if (res.status === 401) {
+    // Login endpoint: parse the server message and let doLogin() show it inline
+    if (path === '/auth/login') {
+      const json = await res.json();
+      throw new Error(json.message || 'Invalid username or password.');
+    }
+    clearSession(); renderLogin(); throw new Error('Unauthorized');
+  }
 
   const json = await res.json();
   if (!json.success) {
