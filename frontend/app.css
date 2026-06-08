@@ -66,13 +66,14 @@
 /* ══ Base ══════════════════════════════════════════════════ */
 * { box-sizing: border-box; }
 body {
-  /* Same dark navy gradient backdrop as the login wrapper, so the
-     branded look carries through into the app. */
+  /* Same bus-photo + dark navy gradient treatment as the login hero,
+     so the branded look carries through into the app. */
   background-color: #0b1120;
   background-image:
-    radial-gradient(ellipse at 20% 60%, rgba(37,99,235,0.18) 0%, transparent 55%),
-    radial-gradient(ellipse at 80% 30%, rgba(245,158,11,0.10) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 100%, rgba(30,58,138,0.20) 0%, transparent 50%);
+    linear-gradient(160deg, rgba(10,16,35,0.90) 0%, rgba(18,30,65,0.85) 50%, rgba(10,18,40,0.90) 100%),
+    url('bus-bg.jpg');
+  background-size: cover;
+  background-position: center 40%;
   background-attachment: fixed;
   font-family: 'Segoe UI', system-ui, sans-serif;
   color: var(--text-1);
