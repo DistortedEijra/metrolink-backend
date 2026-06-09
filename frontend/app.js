@@ -1404,15 +1404,13 @@ function helpAccordionItem(f) {
   return `
     <div class="accordion-item">
       <h2 class="accordion-header" id="${headingId}">
-        <button class="accordion-button" type="button"
-          data-bs-toggle="collapse" data-bs-target="#${collapseId}"
-          aria-expanded="true" aria-controls="${collapseId}">
+        <button class="accordion-button" type="button" aria-expanded="true"
+          onclick="var p=document.getElementById('${collapseId}');var open=p.classList.toggle('show');this.classList.toggle('collapsed',!open);this.setAttribute('aria-expanded',String(open))">
           <i class="fas ${f.icon} me-2 text-primary"></i><strong>${f.title}</strong>
           ${f.roles.length === 1 ? '<span class="status-badge status-admin ms-2">Admin only</span>' : ''}
         </button>
       </h2>
-      <div id="${collapseId}" class="accordion-collapse collapse show"
-        aria-labelledby="${headingId}">
+      <div id="${collapseId}" class="help-panel show" aria-labelledby="${headingId}">
         <div class="accordion-body">
           <p class="text-muted mb-2">${f.summary}</p>
           <ol class="mb-0 ps-3">
