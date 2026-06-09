@@ -135,11 +135,11 @@ function go(page) {
 function shell(activePage, content) {
   const user = getUser();
   const nav = [
-    { id: 'dashboard', icon: 'fa-th-large',     label: 'Dashboard' },
-    { id: 'trips',     icon: 'fa-route',        label: 'Trip Management' },
-    { id: 'employees', icon: 'fa-users',         label: 'Employees' },
-    { id: 'buses',     icon: 'fa-bus',           label: 'Buses' },
-    { id: 'reports',   icon: 'fa-chart-bar',     label: 'Reports' },
+    { id: 'dashboard', icon: 'fa-th-large',       label: 'Dashboard' },
+    { id: 'trips',     icon: 'fa-route',          label: 'Trip Management' },
+    { id: 'employees', icon: 'fa-users',           label: 'Employees' },
+    { id: 'buses',     icon: 'fa-bus',             label: 'Buses' },
+    { id: 'reports',   icon: 'fa-chart-bar',       label: 'Reports' },
     { id: 'help',      icon: 'fa-circle-question', label: 'Help' },
   ];
   if (isAdmin()) {
@@ -150,13 +150,15 @@ function shell(activePage, content) {
   }
 
   const navHtml = nav.map(n => `
-    <div class="nav-link-item ${activePage === n.id ? 'active' : ''}" onclick="go('${n.id}')">
+    <div class="nav-link-item ${activePage === n.id ? 'active' : ''}"
+      onclick="go('${n.id}')" title="${n.label}">
       <i class="fas ${n.icon}"></i> <span>${n.label}</span>
     </div>`).join('');
 
   document.getElementById('app').innerHTML = `
+    <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
     <div class="app-layout">
-      <aside class="sidebar">
+      <aside class="sidebar" id="appSidebar">
         <div class="sidebar-brand">
           <div class="brand-icon"><i class="fas fa-bus-alt"></i></div>
           <h6>METROLINK FOMS</h6>
@@ -170,8 +172,26 @@ function shell(activePage, content) {
           <button class="logout-btn" onclick="logout()"><i class="fas fa-sign-out-alt me-1"></i>Logout</button>
         </div>
       </aside>
-      <main class="main-content">${content}</main>
+      <main class="main-content">
+        <div class="topbar">
+          <button class="topbar-toggle" onclick="toggleSidebar()" aria-label="Menu">
+            <i class="fas fa-bars"></i>
+          </button>
+          <span class="topbar-title"><i class="fas fa-bus-alt me-1"></i>METROLINK FOMS</span>
+          <span class="topbar-user">${user?.fullName || user?.username}</span>
+        </div>
+        ${content}
+      </main>
     </div>`;
+}
+
+function toggleSidebar() {
+  document.getElementById('appSidebar')?.classList.toggle('open');
+  document.getElementById('sidebarOverlay')?.classList.toggle('open');
+}
+function closeSidebar() {
+  document.getElementById('appSidebar')?.classList.remove('open');
+  document.getElementById('sidebarOverlay')?.classList.remove('open');
 }
 
 async function logout() {

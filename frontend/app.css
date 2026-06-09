@@ -663,3 +663,119 @@ body {
 /* ══ HCI: Form validation ═══════════════════════════════════ */
 .form-control:invalid:not(:placeholder-shown),
 .form-select:invalid:not(:placeholder-shown) { border-color: #fca5a5; }
+
+/* ══════════════════════════════════════════════════════════
+   RESPONSIVE
+   ══════════════════════════════════════════════════════════ */
+
+/* Mobile overlay + topbar — hidden by default (desktop) */
+.sidebar-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.52);
+  z-index: 99;
+}
+.sidebar-overlay.open { display: block; }
+
+.topbar { display: none; }
+
+/* ── Slightly tighter at 1200px ───────────────────────── */
+@media (max-width: 1199px) {
+  .main-content { padding: 1.25rem; }
+}
+
+/* ── Icon-only sidebar at tablet / small laptop ─────────
+   768px–991px: sidebar shrinks to 64px, text labels hide  */
+@media (max-width: 991px) {
+  :root { --sidebar-width: 64px; }
+
+  .sidebar-brand {
+    padding: 1rem 0;
+    align-items: center;
+    justify-content: center;
+  }
+  .sidebar-brand h6,
+  .sidebar-brand small,
+  .sidebar-brand .brand-status { display: none; }
+  .sidebar-brand .brand-icon { margin: 0 auto; }
+
+  .nav-link-item {
+    justify-content: center;
+    padding: 0.75rem 0;
+    gap: 0;
+  }
+  .nav-link-item span { display: none; }
+  .nav-link-item i { font-size: 1.05rem; width: auto; }
+
+  .sidebar-footer {
+    padding: 0.75rem 0;
+    text-align: center;
+  }
+  .sidebar-footer .user-name,
+  .sidebar-footer .user-role { display: none; }
+  .logout-btn {
+    display: flex; justify-content: center;
+    font-size: 1rem; padding: 0.25rem 0; margin: 0 auto;
+  }
+  .logout-btn i { margin: 0; }
+
+  .main-content { padding: 1rem; }
+  .table-responsive { max-height: 420px; }
+}
+
+/* ── Off-canvas sidebar on mobile (<768px) ────────────── */
+@media (max-width: 767px) {
+  :root { --sidebar-width: 0px; }
+
+  .sidebar {
+    width: 228px;
+    transform: translateX(-100%);
+    transition: transform 0.24s ease;
+    z-index: 100;
+  }
+  .sidebar.open { transform: translateX(0); }
+  .sidebar-brand { padding: 1.4rem 1rem 1.1rem; text-align: center; align-items: unset; justify-content: unset; }
+  .sidebar-brand h6, .sidebar-brand small, .sidebar-brand .brand-status { display: block; }
+  .nav-link-item { justify-content: flex-start; padding: 0.65rem 1.25rem; gap: 0.8rem; }
+  .nav-link-item span { display: inline; }
+  .nav-link-item i { font-size: 0.88rem; width: 16px; }
+  .sidebar-footer { padding: 0.9rem 1rem 1rem; text-align: left; }
+  .sidebar-footer .user-name, .sidebar-footer .user-role { display: block; }
+  .logout-btn { display: block; font-size: 0.74rem; padding: 0.3rem 0; margin: 0; }
+  .logout-btn i { margin-right: 0.25rem; }
+
+  .main-content { margin-left: 0; padding: 0.75rem; }
+
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--sidebar-border);
+    margin: -0.75rem -0.75rem 0.75rem;
+    position: sticky; top: 0; z-index: 50;
+  }
+  .topbar-toggle {
+    background: none; border: none;
+    color: rgba(255,255,255,0.7); font-size: 1.1rem;
+    cursor: pointer; padding: 0.2rem 0.4rem; line-height: 1;
+  }
+  .topbar-toggle:hover { color: #fff; }
+  .topbar-title {
+    flex: 1;
+    font-size: 0.82rem; font-weight: 700;
+    color: #fff; letter-spacing: 0.5px;
+  }
+  .topbar-user {
+    font-size: 0.72rem; color: rgba(255,255,255,0.5);
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;
+  }
+
+  .page-header { flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
+  .page-header h4 { font-size: 1rem; }
+  .stat-value { font-size: 1.1rem; }
+  .table-responsive { max-height: 340px; }
+  .modal-dialog { margin: 0.5rem auto; }
+  .finance-tab-btn { padding: 0.45rem 0.75rem; font-size: 0.78rem; }
+}
