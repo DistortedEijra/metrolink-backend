@@ -25,3 +25,6 @@ desktop-app/release/*.WebView2/
 
 # Local log/scratch files
 copy-log.txt
+
+# Installer build output
+dist/
