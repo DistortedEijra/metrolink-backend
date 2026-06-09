@@ -378,50 +378,23 @@ body {
   overflow: hidden;
 }
 
-/* ══ Help feature cards ═════════════════════════════════════ */
-.help-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-  gap: 1rem;
-}
-.help-feature-card {
+/* ══ Help accordion — match content-card theme ═════════════ */
+#helpAccordion .accordion-item { border: none; border-bottom: 1px solid var(--border); }
+#helpAccordion .accordion-item:last-child { border-bottom: none; }
+#helpAccordion .accordion-button {
   background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  overflow: hidden;
-}
-.help-feature-header {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.75rem 1rem;
-  background: var(--bg-alt);
-  border-bottom: 1px solid var(--border);
-  font-size: 0.88rem;
-  font-weight: 600;
   color: var(--text-1);
+  font-size: 0.88rem;
+  box-shadow: none;
 }
-.help-feature-icon {
-  color: var(--accent);
-  font-size: 0.95rem;
-  width: 1.1rem;
-  text-align: center;
+#helpAccordion .accordion-button:not(.collapsed) {
+  background: var(--bg-alt);
+  color: var(--text-1);
+  box-shadow: inset 0 -1px 0 var(--border);
 }
-.help-feature-title { flex: 1; }
-.help-feature-body { padding: 0.85rem 1rem; }
-.help-feature-summary {
-  font-size: 0.82rem;
-  color: var(--text-2);
-  margin-bottom: 0.6rem;
-}
-.help-feature-steps {
-  font-size: 0.82rem;
-  color: var(--text-2);
-  margin: 0;
-  padding-left: 1.1rem;
-}
-.help-feature-steps li { margin-bottom: 0.3rem; }
-.help-feature-steps li:last-child { margin-bottom: 0; }
+#helpAccordion .accordion-button::after { filter: var(--accordion-chevron-filter, none); }
+#helpAccordion .accordion-button:focus { box-shadow: none; }
+#helpAccordion .accordion-body { font-size: 0.85rem; color: var(--text-2); }
 
 /* ══ Stat cards — CoreUI vivid colored ═════════════════════ */
 .stat-card {

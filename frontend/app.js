@@ -1398,19 +1398,27 @@ const FEATURE_GUIDE = [
   },
 ];
 
-function helpFeatureCard(f) {
+function helpAccordionItem(f) {
+  const collapseId = `help-collapse-${f.id}`;
+  const headingId  = `help-heading-${f.id}`;
   return `
-    <div class="help-feature-card">
-      <div class="help-feature-header">
-        <i class="fas ${f.icon} help-feature-icon"></i>
-        <span class="help-feature-title">${f.title}</span>
-        ${f.roles.length === 1 ? '<span class="status-badge status-admin ms-2" style="font-size:0.7rem">Admin only</span>' : ''}
-      </div>
-      <div class="help-feature-body">
-        <p class="help-feature-summary">${f.summary}</p>
-        <ol class="help-feature-steps">
-          ${f.steps.map(s => `<li>${s}</li>`).join('')}
-        </ol>
+    <div class="accordion-item">
+      <h2 class="accordion-header" id="${headingId}">
+        <button class="accordion-button" type="button"
+          data-bs-toggle="collapse" data-bs-target="#${collapseId}"
+          aria-expanded="true" aria-controls="${collapseId}">
+          <i class="fas ${f.icon} me-2 text-primary"></i><strong>${f.title}</strong>
+          ${f.roles.length === 1 ? '<span class="status-badge status-admin ms-2">Admin only</span>' : ''}
+        </button>
+      </h2>
+      <div id="${collapseId}" class="accordion-collapse collapse show"
+        aria-labelledby="${headingId}">
+        <div class="accordion-body">
+          <p class="text-muted mb-2">${f.summary}</p>
+          <ol class="mb-0 ps-3">
+            ${f.steps.map(s => `<li class="mb-1">${s}</li>`).join('')}
+          </ol>
+        </div>
       </div>
     </div>`;
 }
@@ -1429,8 +1437,10 @@ async function renderHelp() {
       You're signed in as <strong>${admin ? 'Admin' : 'Staff'}</strong>. This guide only lists the features
       available to your account${admin ? '' : ' — Finance, Staff Accounts, Audit Log and Backup are restricted to admins'}.
     </div>
-    <div class="help-grid">
-      ${items.map(f => helpFeatureCard(f)).join('')}
+    <div class="content-card">
+      <div class="accordion" id="helpAccordion">
+        ${items.map(f => helpAccordionItem(f)).join('')}
+      </div>
     </div>`);
 }
 
