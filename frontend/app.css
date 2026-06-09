@@ -619,9 +619,9 @@ body {
 .payroll-pending { background: #fef3c7; color: #92400e; border-radius: 20px; padding: 0.15rem 0.65rem; font-size: 0.68rem; font-weight: 700; }
 .finance-tab-btn { background: none; border: none; padding: 0.5rem 1.25rem; font-weight: 700; color: var(--text-3); border-bottom: 3px solid transparent; cursor: pointer; font-size: 0.84rem; transition: color 0.12s; }
 .finance-tab-btn.active { color: var(--primary); border-bottom-color: var(--primary); }
-.period-nav { display: flex; align-items: center; gap: 0.5rem; }
-.period-nav button { background: none; border: 1px solid var(--border); border-radius: var(--radius-xs); padding: 0.2rem 0.6rem; cursor: pointer; font-size: 0.8rem; transition: background 0.1s; }
-.period-nav button:hover { background: var(--bg-alt); }
+.period-nav { display: flex; align-items: center; gap: 0.5rem; color: rgba(255,255,255,0.92); }
+.period-nav button { background: none; border: 1px solid rgba(255,255,255,0.2); border-radius: var(--radius-xs); padding: 0.2rem 0.6rem; cursor: pointer; font-size: 0.8rem; color: rgba(255,255,255,0.7); transition: background 0.1s; }
+.period-nav button:hover { background: rgba(255,255,255,0.08); color: #fff; }
 .treasury-row { display: flex; justify-content: space-between; padding: 0.5rem 0; border-bottom: 1px solid var(--border); font-size: 0.88rem; }
 .treasury-row:last-child { border-bottom: none; font-weight: 700; }
 
