@@ -264,28 +264,82 @@ function toggleLoginPass(btn) {
   }
 }
 
+let _loginFailCount = 0;
+let _loginCooldownEnd = 0;
+let _loginCooldownTimer = null;
+const LOGIN_MAX_ATTEMPTS = 3;
+const LOGIN_COOLDOWN_MS  = 30000; // 30 seconds
+
 async function doLogin(e) {
   e.preventDefault();
-  const btn    = document.getElementById('loginBtn');
-  const errDiv = document.getElementById('loginError');
-  const errMsg = document.getElementById('loginErrorMsg');
-  if (errDiv) errDiv.classList.add('d-none');
-  btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Logging in…';
+
+  // Block if still in cooldown
+  if (_loginCooldownEnd > Date.now()) {
+    const secs = Math.ceil((_loginCooldownEnd - Date.now()) / 1000);
+    _showLoginError(`Too many failed attempts. Please wait <strong>${secs}s</strong> before trying again.`, true);
+    return;
+  }
+
+  const btn = document.getElementById('loginBtn');
+  _showLoginError(null); // clear previous error
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Logging in…';
+
   try {
     const data = await api('/auth/login', 'POST', {
       username: document.getElementById('loginUser').value.trim(),
       password: document.getElementById('loginPass').value
     });
+    _loginFailCount = 0; // reset on success
     saveSession(data);
     go('trips');
   } catch (err) {
-    if (errDiv && errMsg) {
-      errMsg.textContent = err.message || 'Invalid username or password.';
-      errDiv.classList.remove('d-none');
+    _loginFailCount++;
+    if (_loginFailCount >= LOGIN_MAX_ATTEMPTS) {
+      // Lock out
+      _loginCooldownEnd = Date.now() + LOGIN_COOLDOWN_MS;
+      _loginFailCount = 0;
+      _startLoginCooldown();
+    } else {
+      const left = LOGIN_MAX_ATTEMPTS - _loginFailCount;
+      const warn = left === 1
+        ? `Incorrect username or password. <strong>1 attempt remaining</strong> before 30s lockout.`
+        : `Incorrect username or password. <strong>${left} attempts remaining</strong> before lockout.`;
+      _showLoginError(warn, true);
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>LOGIN';
     }
-  } finally {
-    if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Login'; }
   }
+}
+
+function _showLoginError(msg, isHtml = false) {
+  const errDiv = document.getElementById('loginError');
+  const errMsg = document.getElementById('loginErrorMsg');
+  if (!errDiv || !errMsg) return;
+  if (!msg) { errDiv.classList.add('d-none'); return; }
+  if (isHtml) errMsg.innerHTML = msg; else errMsg.textContent = msg;
+  errDiv.classList.remove('d-none');
+}
+
+function _startLoginCooldown() {
+  const tick = () => {
+    const btn  = document.getElementById('loginBtn');
+    const secs = Math.ceil((_loginCooldownEnd - Date.now()) / 1000);
+    if (secs <= 0) {
+      clearInterval(_loginCooldownTimer);
+      _loginCooldownTimer = null;
+      if (btn) { btn.disabled = false; btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>LOGIN'; }
+      _showLoginError('<i class="fas fa-check-circle me-1"></i>You may try again now.', true);
+      return;
+    }
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<i class="fas fa-lock me-2"></i>Locked — try again in ${secs}s`;
+    }
+    _showLoginError(`Too many failed attempts. Account locked for <strong>${secs} second${secs !== 1 ? 's' : ''}</strong>.`, true);
+  };
+  tick();
+  _loginCooldownTimer = setInterval(tick, 1000);
 }
 
 // ══════════════════════════════════════════════════════════
@@ -639,22 +693,26 @@ async function openIncomeExp(tripId, busNum, tripDate) {
         <div class="mb-2"><label class="form-label">Gross Income</label>
           <div class="input-group"><span class="input-group-text">₱</span>
           <input type="number" id="ie_gross" class="form-control" value="${v(inc,'grossIncome')}" min="0" step="0.01" oninput="ieCalcNet();ieCalcBonus()"></div></div>
-        <div id="ie_bonusPreview" class="small text-muted mb-1"></div>
+        <div class="mb-2"><label class="form-label">Additional Commission</label>
+          <div class="input-group"><span class="input-group-text">₱</span>
+          <input type="number" id="ie_addcomm" class="form-control bg-light" readonly title="₱100 each per ₱1,000 above ₱13,000 gross" value="0"></div>
+          <div id="ie_addcommPreview" class="small text-muted mt-1"></div></div>
+        <div class="mb-2"><label class="form-label">Bonus Each</label>
+          <div class="input-group"><span class="input-group-text">₱</span>
+          <input type="number" id="ie_bonuseach" class="form-control bg-light" readonly title="₱500 each if gross ≥ ₱23,000" value="0"></div>
+          <div id="ie_bonuseachPreview" class="small text-muted mt-1"></div></div>
         <div class="mb-2"><label class="form-label">Driver Income</label>
           <div class="input-group"><span class="input-group-text">₱</span>
-          <input type="number" id="ie_dinc" class="form-control bg-light" readonly title="Auto-calculated: daily rate + quota bonus"></div></div>
+          <input type="number" id="ie_dinc" class="form-control bg-light" readonly title="Daily rate + additional commission + bonus each"></div></div>
         <div class="mb-2"><label class="form-label">Conductor Income</label>
           <div class="input-group"><span class="input-group-text">₱</span>
-          <input type="number" id="ie_cinc" class="form-control bg-light" readonly title="Auto-calculated: daily rate + quota bonus"></div></div>
+          <input type="number" id="ie_cinc" class="form-control bg-light" readonly title="Daily rate + additional commission + bonus each"></div></div>
         <div class="mb-2"><label class="form-label">Driver Bond</label>
           <div class="input-group"><span class="input-group-text">₱</span>
           <input type="number" id="ie_dbond" class="form-control" value="${v(inc,'driverBond')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
         <div class="mb-2"><label class="form-label">Conductor Bond</label>
           <div class="input-group"><span class="input-group-text">₱</span>
           <input type="number" id="ie_cbond" class="form-control" value="${v(inc,'conductorBond')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
-        <div class="mb-2"><label class="form-label">Commission</label>
-          <div class="input-group"><span class="input-group-text">₱</span>
-          <input type="number" id="ie_comm" class="form-control" value="${v(inc,'commission')}" min="0" step="0.01" oninput="ieCalcNet()"></div></div>
         <div class="net-display mt-3">
           <div class="net-label">Net Income</div>
           <div class="net-value" id="ie_net">${peso(v(inc,'netIncome'))}</div>
@@ -664,7 +722,7 @@ async function openIncomeExp(tripId, busNum, tripDate) {
         <div class="section-header"><i class="fas fa-arrow-up me-1"></i>Expenses</div>
         ${[['ie_diesel','Diesel',v(exp,'diesel')],['ie_wash','Washing',v(exp,'washing')],
            ['ie_ot','Overtime',v(exp,'overtime')],
-           ['ie_nd','Night Diff',v(exp,'nightDiff')],['ie_bonus','Bonus',v(exp,'bonus')],
+           ['ie_nd','Night Diff',v(exp,'nightDiff')],
            ['ie_ca','Cash Advance',v(exp,'cashAdvance')],['ie_dmg','Damages',v(exp,'damages')],
            ['ie_other','Other',v(exp,'otherExpenses')]].map(([id,lbl,val,extra]) => `
           <div class="mb-1 row g-1 align-items-center">
@@ -688,7 +746,7 @@ async function openIncomeExp(tripId, busNum, tripDate) {
         </div>
       </div>
     </div>`;
-  // Show bonus preview for loaded income
+  // Auto-calculate additional commission and bonus each on load
   setTimeout(ieCalcBonus, 0);
 }
 
@@ -696,32 +754,44 @@ function ieCalcNet() {
   const g  = +document.getElementById('ie_gross').value || 0;
   const db = +document.getElementById('ie_dbond').value || 0;
   const cb = +document.getElementById('ie_cbond').value || 0;
-  const c  = +document.getElementById('ie_comm').value || 0;
-  document.getElementById('ie_net').textContent = peso(g - db - cb - c);
+  document.getElementById('ie_net').textContent = peso(g - db - cb);
 }
 
 function ieCalcBonus() {
   const gross = +document.getElementById('ie_gross').value || 0;
-  const units = Math.max(0, Math.floor((gross - 13000) / 1000));
-  const bonus = units * 100;
-  const el = document.getElementById('ie_bonusPreview');
-  if (el) {
-    el.innerHTML = units > 0
-      ? `<i class="fas fa-star text-warning me-1"></i><strong class="text-success">Quota bonus: +₱${bonus} each</strong> (${units} unit${units > 1 ? 's' : ''} × ₱100)`
-      : `<i class="fas fa-info-circle me-1"></i>No quota bonus — below ₱13,000`;
-  }
-  // Auto-update driver and conductor income: daily_rate + quota_bonus
+
+  // Additional Commission: ₱100 each per ₱1,000 above ₱13,000
+  const units   = Math.max(0, Math.floor((gross - 13000) / 1000));
+  const addComm = units * 100;
+  const acEl = document.getElementById('ie_addcomm');
+  if (acEl) acEl.value = addComm;
+  const acPrev = document.getElementById('ie_addcommPreview');
+  if (acPrev) acPrev.innerHTML = units > 0
+    ? `<i class="fas fa-plus-circle text-success me-1"></i><strong class="text-success">+₱${addComm} each</strong> (${units} unit${units > 1 ? 's' : ''} × ₱100 above ₱13,000)`
+    : `<i class="fas fa-info-circle me-1"></i>No additional commission — below ₱13,000`;
+
+  // Bonus Each: ₱500 each if gross ≥ ₱23,000
+  const bonusEach = gross >= 23000 ? 500 : 0;
+  const beEl = document.getElementById('ie_bonuseach');
+  if (beEl) beEl.value = bonusEach;
+  const bePrev = document.getElementById('ie_bonuseachPreview');
+  if (bePrev) bePrev.innerHTML = bonusEach > 0
+    ? `<i class="fas fa-star text-warning me-1"></i><strong class="text-success">+₱500 each</strong> — reached ₱23,000 target`
+    : `<i class="fas fa-info-circle me-1"></i>No bonus — below ₱23,000`;
+
+  // Auto-update driver and conductor income: daily rate + additional commission + bonus each
   const driver    = (tripDrivers    || []).find(d => d.id === window._ieDriverId);
   const conductor = (tripConductors || []).find(c => c.id === window._ieConductorId);
+  const total = addComm + bonusEach;
   const dRateEl = document.getElementById('ie_dinc');
   const cRateEl = document.getElementById('ie_cinc');
-  if (dRateEl) dRateEl.value = (driver?.dailyRate    ?? 1225) + bonus;
-  if (cRateEl) cRateEl.value = (conductor?.dailyRate ?? 1225) + bonus;
+  if (dRateEl) dRateEl.value = (driver?.dailyRate    ?? 1225) + total;
+  if (cRateEl) cRateEl.value = (conductor?.dailyRate ?? 1225) + total;
   ieCalcTotal();
 }
 
 function ieCalcTotal() {
-  const ids = ['ie_diesel','ie_wash','ie_ot','ie_nd','ie_bonus','ie_ca','ie_dmg','ie_other'];
+  const ids = ['ie_diesel','ie_wash','ie_ot','ie_nd','ie_ca','ie_dmg','ie_other'];
   const t = ids.reduce((s,id) => s + (+document.getElementById(id).value||0), 0);
   document.getElementById('ie_total').textContent = peso(t);
 }
@@ -739,7 +809,7 @@ async function saveIncomeExp() {
       conductorIncome: +document.getElementById('ie_cinc').value||0,
       driverBond:      +document.getElementById('ie_dbond').value||0,
       conductorBond:   +document.getElementById('ie_cbond').value||0,
-      commission:      +document.getElementById('ie_comm').value||0
+      commission:      0
     });
     const empIdVal = document.getElementById('ie_empid').value;
     await api(`/trips/${ieCurrentTripId}/expenses`, 'POST', {
@@ -748,7 +818,7 @@ async function saveIncomeExp() {
       driverSalary:  0,
       overtime:      +document.getElementById('ie_ot').value||0,
       nightDiff:     +document.getElementById('ie_nd').value||0,
-      bonus:         +document.getElementById('ie_bonus').value||0,
+      bonus:         0,
       cashAdvance:   +document.getElementById('ie_ca').value||0,
       damages:       +document.getElementById('ie_dmg').value||0,
       damageRemark:  document.getElementById('ie_dremark').value||null,
@@ -2280,7 +2350,7 @@ async function loadFinanceTreasury() {
         <div class="treasury-row"><span class="ms-3 text-muted">− Driver &amp; Conductor Wages</span><span class="text-danger">−${peso(s.totalOperatorWages)}</span></div>
         <div class="treasury-row"><span class="ms-3 text-muted">− Bond Deductions (retained)</span><span class="text-muted">−${peso(s.totalBondsRetained)}</span></div>
         <div class="treasury-row"><span class="ms-3 text-muted">− Commission</span><span class="text-muted">−${peso(s.totalCommission)}</span></div>
-        <div class="treasury-row"><span>Net Income after bonds &amp; commission</span><span class="fw-semibold">${peso(s.totalNetIncome)}</span></div>
+        <div class="treasury-row"><span>Net Income after bonds</span><span class="fw-semibold">${peso(s.totalNetIncome)}</span></div>
         <div class="treasury-row"><span class="ms-3 text-muted">− Operating Expenses (fuel, wash, damages…)</span><span class="text-danger">−${peso(s.totalExpenses)}</span></div>
         <div class="treasury-row"><span>Net Profit (from trips)</span><span class="fw-semibold">${peso(s.netProfit)}</span></div>
         <div class="treasury-row"><span class="ms-3 text-muted">− Fixed Staff Payroll (HR/Ops/Mechanic)</span><span class="text-danger">−${peso(s.fixedStaffPayroll)}</span></div>
