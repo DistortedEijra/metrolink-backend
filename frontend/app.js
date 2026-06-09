@@ -1854,7 +1854,7 @@ async function renderDashboard() {
         </div>
       </div>
       <div class="col-md-4">
-        <div class="content-card p-3" style="max-height:300px;overflow-y:auto">
+        <div class="content-card p-3">
           <div class="dash-section-label">Today's Trips</div>
           <div id="dashTodayTrips"><div class="text-muted small">Loading…</div></div>
         </div>
