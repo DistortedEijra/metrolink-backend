@@ -367,6 +367,20 @@ function renderTripRows(rows) {
     </tr>`).join('');
 }
 
+async function refreshTripTable() {
+  const search = document.getElementById('tripSearch')?.value.trim() || '';
+  const date = document.getElementById('tripDateFilter')?.value || '';
+  tripsList = await api('/trips');
+
+  if (search) {
+    renderTripRows(await api(`/trips/search?q=${encodeURIComponent(search)}`));
+  } else if (date) {
+    renderTripRows(await api(`/trips/date?date=${date}`));
+  } else {
+    renderTripRows(tripsList);
+  }
+}
+
 function searchTrips(q) {
   if (!q.trim()) { renderTripRows(tripsList); return; }
   api(`/trips/search?q=${encodeURIComponent(q)}`).then(renderTripRows).catch(() => {});
@@ -387,11 +401,6 @@ function getTripModal() {
           <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
         </div>
         <div class="modal-body">
-          <ul class="nav trip-tabs" id="tripTabs">
-            <li class="nav-item"><button class="nav-link active" data-tab="0">1. Trip Details</button></li>
-            <li class="nav-item"><button class="nav-link" data-tab="1">2. Income</button></li>
-            <li class="nav-item"><button class="nav-link" data-tab="2">3. Expenses</button></li>
-          </ul>
           <div id="tripTab0">
             <input type="hidden" id="tripId">
             <div class="row g-3">
@@ -409,11 +418,11 @@ function getTripModal() {
               </div>
               <div class="col-md-6">
                 <label class="form-label">Driver *</label>
-                <select id="tDriver" class="form-select" required onchange="updateDamageEmployeeOpts();calcOperatorIncome()"></select>
+                <select id="tDriver" class="form-select" required></select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Conductor *</label>
-                <select id="tConductor" class="form-select" required onchange="updateDamageEmployeeOpts();calcOperatorIncome()"></select>
+                <select id="tConductor" class="form-select" required></select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Dispatch Time *</label>
@@ -429,106 +438,10 @@ function getTripModal() {
               </div>
             </div>
           </div>
-          <div id="tripTab1" style="display:none">
-            <div class="row g-3">
-              <div class="col-md-4">
-                <label class="form-label">Gross Income *</label>
-                <div class="input-group">
-                  <span class="input-group-text">₱</span>
-                  <input type="number" id="iGross" class="form-control" min="0" step="0.01" placeholder="0.00" oninput="calcNet();calcBonus();calcOperatorIncome()">
-                </div>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Driver Income</label>
-                <div class="input-group">
-                  <span class="input-group-text">₱</span>
-                  <input type="number" id="iDriverIncome" class="form-control bg-light" readonly title="Auto-calculated: daily rate + quota bonus">
-                </div>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Conductor Income</label>
-                <div class="input-group">
-                  <span class="input-group-text">₱</span>
-                  <input type="number" id="iConductorIncome" class="form-control bg-light" readonly title="Auto-calculated: daily rate + quota bonus">
-                </div>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Driver Bond</label>
-                <div class="input-group">
-                  <span class="input-group-text">₱</span>
-                  <input type="number" id="iDriverBond" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
-                </div>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Conductor Bond</label>
-                <div class="input-group">
-                  <span class="input-group-text">₱</span>
-                  <input type="number" id="iConductorBond" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
-                </div>
-              </div>
-              <div class="col-md-4">
-                <label class="form-label">Commission</label>
-                <div class="input-group">
-                  <span class="input-group-text">₱</span>
-                  <input type="number" id="iCommission" class="form-control" min="0" step="0.01" value="0" oninput="calcNet()">
-                </div>
-              </div>
-              <div class="col-12">
-                <div class="net-display">
-                  <div class="net-label">Net Income (Gross − Bond − Commission)</div>
-                  <div class="net-value" id="netDisplay">₱0.00</div>
-                </div>
-                <div id="bonusPreview" class="mt-2 small text-muted"></div>
-              </div>
-            </div>
-          </div>
-          <div id="tripTab2" style="display:none">
-            <div class="row g-2">
-              <div class="col-md-4"><label class="form-label">Diesel</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eDiesel" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-4"><label class="form-label">Washing</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eWashing" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-4"><label class="form-label">Overtime</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eOT" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-4"><label class="form-label">Night Differential</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eNight" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-4"><label class="form-label">Bonus</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eBonus" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-4"><label class="form-label">Cash Advance</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eCash" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-4"><label class="form-label">Damages</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eDamage" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-4"><label class="form-label">Other Expenses</label>
-                <div class="input-group"><span class="input-group-text">₱</span>
-                <input type="number" id="eOther" class="form-control" min="0" step="0.01" value="0" oninput="calcTotal()"></div></div>
-              <div class="col-md-8"><label class="form-label">Damage Remark</label>
-                <input type="text" id="eDamageRemark" class="form-control" placeholder="Describe the damage..."></div>
-              <div class="col-md-4"><label class="form-label">Employee Responsible</label>
-                <select id="eEmployeeId" class="form-select"><option value="">— None —</option></select></div>
-              <div class="col-12">
-                <div class="net-display" style="background:#fff3e0;border-left-color:#ef6c00">
-                  <div class="net-label" style="color:#bf360c">Total Expenses</div>
-                  <div class="net-value" style="color:#e65100" id="totalDisplay">₱0.00</div>
-                </div>
-              </div>
-            </div>
-          </div>
         </div>
         <div class="modal-footer">
-          <button class="btn btn-outline-secondary btn-sm" id="tabPrev" onclick="switchTab(-1)" style="display:none">
-            <i class="fas fa-chevron-left me-1"></i>Back
-          </button>
-          <button class="btn btn-primary btn-sm" id="tabNext" onclick="switchTab(1)">
-            Next <i class="fas fa-chevron-right ms-1"></i>
-          </button>
-          <button class="btn btn-success btn-sm" id="tabSave" onclick="saveTripAll()" style="display:none">
+          <button class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-success btn-sm" id="tripSaveBtn" onclick="saveTripOnly()">
             <i class="fas fa-save me-1"></i>Save Trip
           </button>
         </div>
@@ -546,21 +459,13 @@ function openAddTrip() {
   tripTabIdx = 0; savedTripId = null; tripModalMode = 'add';
   document.getElementById('tripModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Add Trip';
   document.getElementById('tripId').value = '';
-  ['tDate','tDispatch','tArrival','tRemarks','iGross','iDriverIncome','iConductorIncome',
-   'iDriverBond','iConductorBond','iCommission',
-   'eDiesel','eWashing','eOT','eNight','eBonus','eCash','eDamage','eOther','eDamageRemark'].forEach(id => {
+  ['tDate','tDispatch','tArrival','tRemarks'].forEach(id => {
     const el = document.getElementById(id);
     if (el) el.value = el.type === 'number' ? '0' : '';
   });
-  const eEmpSel = document.getElementById('eEmployeeId');
-  if (eEmpSel) eEmpSel.value = '';
-  document.getElementById('netDisplay').textContent = '₱0.00';
-  document.getElementById('totalDisplay').textContent = '₱0.00';
   document.getElementById('tDate').value = new Date().toISOString().split('T')[0];
   populateTripDropdowns();
   refreshAvailableStaff();
-  calcOperatorIncome();
-  switchTabTo(0);
   new bootstrap.Modal(document.getElementById('tripModal')).show();
 }
 
@@ -578,8 +483,6 @@ async function openEditTrip(id) {
   await refreshAvailableStaff();
   document.getElementById('tDriver').value    = trip.driverId;
   document.getElementById('tConductor').value = trip.conductorId;
-  calcOperatorIncome();
-  switchTabTo(0);
   new bootstrap.Modal(document.getElementById('tripModal')).show();
 }
 
@@ -626,31 +529,6 @@ async function refreshAvailableStaff() {
   } catch {}
 }
 
-function switchTabTo(idx) {
-  tripTabIdx = idx;
-  [0,1,2].forEach(i => {
-    document.getElementById(`tripTab${i}`).style.display = i === idx ? '' : 'none';
-  });
-  document.querySelectorAll('#tripTabs .nav-link').forEach((btn, i) => {
-    btn.classList.toggle('active', i === idx);
-  });
-  document.getElementById('tabPrev').style.display = idx > 0 ? '' : 'none';
-  document.getElementById('tabNext').style.display = idx < 2 ? '' : 'none';
-  document.getElementById('tabSave').style.display = idx === 2 ? '' : 'none';
-}
-
-async function switchTab(dir) {
-  const next = tripTabIdx + dir;
-  if (next < 0 || next > 2) return;
-
-  // Save trip details when moving from tab 0
-  if (tripTabIdx === 0 && dir === 1) {
-    const ok = await saveTripDetails();
-    if (!ok) return;
-  }
-  switchTabTo(next);
-}
-
 async function saveTripDetails() {
   const body = {
     tripDate:     document.getElementById('tDate').value,
@@ -676,7 +554,7 @@ async function saveTripDetails() {
     if (tripModalMode === 'add' && !savedTripId) {
       const trip = await api('/trips', 'POST', body);
       savedTripId = trip.id;
-      toast('Trip created — now add income & expenses');
+      toast('Trip created');
     } else if (tripModalMode === 'edit' && savedTripId) {
       await api(`/trips/${savedTripId}`, 'PUT', body);
       toast('Trip updated');
@@ -685,62 +563,23 @@ async function saveTripDetails() {
   } catch { return false; }
 }
 
-async function saveTripAll() {
-  const btn = document.getElementById('tabSave');
-  btn.disabled = true;
+async function saveTripOnly() {
+  const btn = document.getElementById('tripSaveBtn');
   try {
-    // Save income
-    await api(`/trips/${savedTripId}/income`, 'POST', {
-      grossIncome:     +document.getElementById('iGross').value || 0,
-      driverIncome:    +document.getElementById('iDriverIncome').value || 0,
-      conductorIncome: +document.getElementById('iConductorIncome').value || 0,
-      driverBond:      +document.getElementById('iDriverBond').value || 0,
-      conductorBond:   +document.getElementById('iConductorBond').value || 0,
-      commission:      +document.getElementById('iCommission').value || 0
-    });
-    // Save expenses
-    await api(`/trips/${savedTripId}/expenses`, 'POST', {
-      diesel:        +document.getElementById('eDiesel').value || 0,
-      washing:       +document.getElementById('eWashing').value || 0,
-      driverSalary:  0,
-      overtime:      +document.getElementById('eOT').value || 0,
-      nightDiff:     +document.getElementById('eNight').value || 0,
-      bonus:         +document.getElementById('eBonus').value || 0,
-      cashAdvance:   +document.getElementById('eCash').value || 0,
-      damages:       +document.getElementById('eDamage').value || 0,
-      damageRemark:  document.getElementById('eDamageRemark').value || null,
-      employeeId:    document.getElementById('eEmployeeId').value ? +document.getElementById('eEmployeeId').value : null,
-      otherExpenses: +document.getElementById('eOther').value || 0
-    });
-    toast('Trip saved successfully!');
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+    }
+    const ok = await saveTripDetails();
+    if (!ok) return;
     bootstrap.Modal.getInstance(document.getElementById('tripModal')).hide();
-    renderTrips();
-  } finally { if (btn) btn.disabled = false; }
-}
-
-function calcNet() {
-  const g  = +document.getElementById('iGross').value || 0;
-  const db = +document.getElementById('iDriverBond').value || 0;
-  const cb = +document.getElementById('iConductorBond').value || 0;
-  const c  = +document.getElementById('iCommission').value || 0;
-  document.getElementById('netDisplay').textContent = peso(g - db - cb - c);
-}
-
-function calcBonus() {
-  const gross = +document.getElementById('iGross').value || 0;
-  const units = Math.max(0, Math.floor((gross - 13000) / 1000));
-  const bonus = units * 100;
-  const el = document.getElementById('bonusPreview');
-  if (!el) return;
-  el.innerHTML = units > 0
-    ? `<i class="fas fa-star text-warning me-1"></i><strong class="text-success">Quota bonus: +₱${bonus} each</strong> — driver &amp; conductor (${units} unit${units > 1 ? 's' : ''} × ₱100)`
-    : `<i class="fas fa-info-circle me-1"></i>No quota bonus — gross below ₱13,000 threshold`;
-}
-
-function calcTotal() {
-  const ids = ['eDiesel','eWashing','eOT','eNight','eBonus','eCash','eDamage','eOther'];
-  const total = ids.reduce((s, id) => s + (+document.getElementById(id).value || 0), 0);
-  document.getElementById('totalDisplay').textContent = peso(total);
+    await refreshTripTable();
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Trip';
+    }
+  }
 }
 
 // Income/Expenses view modal
@@ -861,20 +700,6 @@ function ieCalcNet() {
   document.getElementById('ie_net').textContent = peso(g - db - cb - c);
 }
 
-function calcOperatorIncome() {
-  const driverId    = +document.getElementById('tDriver')?.value    || 0;
-  const conductorId = +document.getElementById('tConductor')?.value || 0;
-  const gross       = +document.getElementById('iGross')?.value     || 0;
-  const bonus       = Math.max(0, Math.floor((gross - 13000) / 1000)) * 100;
-  const driver    = (tripDrivers    || []).find(d => d.id === driverId);
-  const conductor = (tripConductors || []).find(c => c.id === conductorId);
-  const di = document.getElementById('iDriverIncome');
-  const ci = document.getElementById('iConductorIncome');
-  if (di) di.value = (driver?.dailyRate    ?? 1225) + bonus;
-  if (ci) ci.value = (conductor?.dailyRate ?? 1225) + bonus;
-  calcNet();
-}
-
 function ieCalcBonus() {
   const gross = +document.getElementById('ie_gross').value || 0;
   const units = Math.max(0, Math.floor((gross - 13000) / 1000));
@@ -902,7 +727,12 @@ function ieCalcTotal() {
 }
 
 async function saveIncomeExp() {
+  const btn = document.getElementById('ieSaveBtn');
   try {
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Saving...';
+    }
     await api(`/trips/${ieCurrentTripId}/income`, 'POST', {
       grossIncome:     +document.getElementById('ie_gross').value||0,
       driverIncome:    +document.getElementById('ie_dinc').value||0,
@@ -925,9 +755,16 @@ async function saveIncomeExp() {
       employeeId:    empIdVal ? +empIdVal : null,
       otherExpenses: +document.getElementById('ie_other').value||0
     });
+    await refreshTripTable();
     toast('Income & Expenses saved!');
     bootstrap.Modal.getInstance(document.getElementById('ieModal')).hide();
-  } catch {}
+  } catch {
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-save me-1"></i>Save Changes';
+    }
+  }
 }
 
 // ══════════════════════════════════════════════════════════
