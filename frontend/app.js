@@ -135,19 +135,19 @@ function go(page) {
 function shell(activePage, content) {
   const user = getUser();
   const nav = [
-    { id: 'dashboard', icon: 'fa-th-large',       label: 'Dashboard' },
-    { id: 'trips',     icon: 'fa-route',          label: 'Trip Management' },
-    { id: 'employees', icon: 'fa-users',           label: 'Employees' },
-    { id: 'buses',     icon: 'fa-bus',             label: 'Buses' },
-    { id: 'reports',   icon: 'fa-chart-bar',       label: 'Reports' },
-    { id: 'help',      icon: 'fa-circle-question', label: 'Help' },
+    { id: 'dashboard', icon: 'fa-th-large',  label: 'Dashboard' },
+    { id: 'trips',     icon: 'fa-route',     label: 'Trip Management' },
+    { id: 'buses',     icon: 'fa-bus',       label: 'Buses' },
+    { id: 'employees', icon: 'fa-users',     label: 'Employees' },
   ];
+  if (isAdmin()) nav.push({ id: 'finance', icon: 'fa-money-bill-wave', label: 'Finance' });
+  nav.push({ id: 'reports', icon: 'fa-chart-bar', label: 'Reports' });
   if (isAdmin()) {
-    nav.push({ id: 'finance', icon: 'fa-money-bill-wave',  label: 'Finance' });
-    nav.push({ id: 'users',   icon: 'fa-user-cog',         label: 'Staff Accounts' });
-    nav.push({ id: 'audit',   icon: 'fa-clipboard-list',   label: 'Audit Log' });
-    nav.push({ id: 'backup',  icon: 'fa-database',         label: 'Backup' });
+    nav.push({ id: 'users',  icon: 'fa-user-cog',        label: 'Staff Accounts' });
+    nav.push({ id: 'audit',  icon: 'fa-clipboard-list',  label: 'Audit Log' });
+    nav.push({ id: 'backup', icon: 'fa-database',        label: 'Backup' });
   }
+  nav.push({ id: 'help', icon: 'fa-circle-question', label: 'Help' });
 
   const navHtml = nav.map(n => `
     <div class="nav-link-item ${activePage === n.id ? 'active' : ''}"
