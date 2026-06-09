@@ -6,6 +6,7 @@ import com.metrolink.util.ResponseUtil;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
 
+import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.LocalDate;
 import java.util.Map;
@@ -182,6 +183,40 @@ public class TripServlet extends HttpServlet {
             );
             auditDAO.log(userId, username, "CREATE_TRIP", "TRIP", (Integer) created.get("id"), null);
             ResponseUtil.created(res, created);
+
+        } catch (Exception e) {
+            ResponseUtil.error(res, 500, e.getMessage());
+        }
+    }
+
+    @Override
+    protected void service(HttpServletRequest req, HttpServletResponse res) throws ServletException, IOException {
+        if ("PATCH".equalsIgnoreCase(req.getMethod())) {
+            doPatch(req, res);
+        } else {
+            super.service(req, res);
+        }
+    }
+
+    /** PATCH /api/trips/{id} — update arrival time only (staff + admin) */
+    private void doPatch(HttpServletRequest req, HttpServletResponse res) throws IOException {
+        try {
+            String pathInfo = req.getPathInfo();
+            if (pathInfo == null || pathInfo.equals("/")) {
+                ResponseUtil.error(res, 400, "Trip ID required"); return;
+            }
+            int id = Integer.parseInt(pathInfo.split("/")[1]);
+            int userId = (int) req.getAttribute("userId");
+            String username = (String) req.getAttribute("username");
+
+            Map<String, Object> body = ResponseUtil.parseBody(req);
+            String arrivalTime = (String) body.getOrDefault("arrivalTime", null);
+
+            boolean updated = tripDAO.updateArrival(id, arrivalTime);
+            if (updated) {
+                auditDAO.log(userId, username, "UPDATE_ARRIVAL", "TRIP", id, null);
+            }
+            ResponseUtil.success(res, Map.of("updated", updated));
 
         } catch (Exception e) {
             ResponseUtil.error(res, 500, e.getMessage());

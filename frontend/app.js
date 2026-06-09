@@ -406,7 +406,7 @@ async function renderTrips() {
         </table>
       </div>
     </div>
-    ${getTripModal()}${getIncomeExpModal()}`);
+    ${getTripModal()}${getIncomeExpModal()}${getArrivalModal()}`);
 
   try {
     [tripsList, tripBuses, tripDrivers, tripConductors] = await Promise.all([
@@ -442,6 +442,9 @@ function renderTripRows(rows) {
       <td>
         <button class="btn btn-outline-primary btn-icon me-1" onclick="openIncomeExp(${t.id},'${t.busNumber}','${t.tripDate}')" title="Income & Expenses">
           <i class="fas fa-dollar-sign"></i>
+        </button>
+        <button class="btn btn-outline-success btn-icon me-1" onclick="openArrivalModal(${t.id},'${t.arrivalTime||''}')" title="Set Arrival Time">
+          <i class="fas fa-clock"></i>
         </button>
         ${isAdmin() ? `<button class="btn btn-outline-secondary btn-icon" onclick="openEditTrip(${t.id})" title="Edit Trip"><i class="fas fa-edit"></i></button>` : ''}
       </td>
@@ -865,6 +868,58 @@ async function saveIncomeExp() {
 }
 
 // ══════════════════════════════════════════════════════════
+// Arrival Time Modal
+function getArrivalModal() {
+  return `
+  <div class="modal fade" id="arrivalModal" tabindex="-1">
+    <div class="modal-dialog modal-sm">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="fas fa-clock me-2"></i>Set Arrival Time</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body">
+          <input type="hidden" id="arrivalTripId">
+          <label class="form-label fw-semibold">Arrival Time</label>
+          <input type="time" id="arrivalTimeInput" class="form-control">
+          <div class="form-text text-muted">Leave blank to clear the arrival time.</div>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+          <button class="btn btn-primary btn-sm" id="arrivalSaveBtn" onclick="saveArrivalTime()">
+            <i class="fas fa-save me-1"></i>Save
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function openArrivalModal(tripId, currentArrival) {
+  document.getElementById('arrivalTripId').value = tripId;
+  document.getElementById('arrivalTimeInput').value = currentArrival ? currentArrival.substring(0, 5) : '';
+  new bootstrap.Modal(document.getElementById('arrivalModal')).show();
+}
+
+async function saveArrivalTime() {
+  const btn = document.getElementById('arrivalSaveBtn');
+  const tripId = document.getElementById('arrivalTripId').value;
+  const timeVal = document.getElementById('arrivalTimeInput').value;
+  try {
+    btn.disabled = true;
+    await api(`/trips/${tripId}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ arrivalTime: timeVal ? timeVal + ':00' : null })
+    });
+    bootstrap.Modal.getInstance(document.getElementById('arrivalModal')).hide();
+    await refreshTripTable();
+  } catch (e) {
+    alert('Failed to save arrival time: ' + (e.message || e));
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // EMPLOYEES
 // ══════════════════════════════════════════════════════════
 async function renderEmployees() {

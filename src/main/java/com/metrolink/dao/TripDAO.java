@@ -120,6 +120,17 @@ public class TripDAO {
         }
     }
 
+    /** Staff/admin: update only the arrival time for a trip */
+    public boolean updateArrival(int id, String arrivalTime) throws SQLException {
+        String sql = "UPDATE trips SET arrival_time=? WHERE id=?";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, normalizeTime(arrivalTime));
+            ps.setInt(2, id);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
     /** Mark trip as modified if its income/expenses change */
     public void markModified(int id, int modifiedBy) throws SQLException {
         String sql = "UPDATE trips SET is_modified=TRUE, modified_by=?, modified_at=NOW() WHERE id=?";
