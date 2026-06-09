@@ -557,7 +557,8 @@ body {
 .report-summary .sum-item .sum-value { font-size: 1.15rem; font-weight: 800; color: white; }
 
 /* ══ Scrollable table ══════════════════════════════════════ */
-.table-responsive { max-height: 520px; overflow-y: auto; }
+/* No vertical max-height — page scroll (.main-content) handles vertical.
+   Sticky headers attach to the .main-content scroll container. */
 .table-responsive thead th { position: sticky; top: 0; z-index: 1; }
 
 /* ══ Dashboard ══════════════════════════════════════════════ */
@@ -720,7 +721,6 @@ body {
   .logout-btn i { margin: 0; }
 
   .main-content { padding: 1rem; }
-  .table-responsive { max-height: 420px; }
 }
 
 /* ── Off-canvas sidebar on mobile (<768px) ────────────── */
@@ -775,7 +775,6 @@ body {
   .page-header { flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1rem; }
   .page-header h4 { font-size: 1rem; }
   .stat-value { font-size: 1.1rem; }
-  .table-responsive { max-height: 340px; }
   .modal-dialog { margin: 0.5rem auto; }
   .finance-tab-btn { padding: 0.45rem 0.75rem; font-size: 0.78rem; }
 }
