@@ -647,7 +647,7 @@ async function saveTripOnly() {
 function getIncomeExpModal() {
   return `
   <div class="modal fade" id="ieModal" tabindex="-1">
-    <div class="modal-dialog modal-lg">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
       <div class="modal-content">
         <div class="modal-header">
           <h5 class="modal-title" id="ieTitle"><i class="fas fa-dollar-sign me-2"></i>Income & Expenses</h5>
