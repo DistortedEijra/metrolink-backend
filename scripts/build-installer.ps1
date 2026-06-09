@@ -1,29 +1,26 @@
 # =============================================================
-#  Metrolink FOMS — Build the installer EXE
-#  Run this from the scripts\ folder (or from anywhere):
+#  Metrolink FOMS - Build the installer EXE
+#  Run from project root or scripts\ folder:
 #    powershell -ExecutionPolicy Bypass -File scripts\build-installer.ps1
-#
-#  What it does:
-#   1. Checks for (or installs) Inno Setup 6 via winget
-#   2. Ensures a pre-built WAR exists (runs mvn if not)
-#   3. Compiles setup.iss  →  dist\Metrolink FOMS Setup.exe
 # =============================================================
 
 $ErrorActionPreference = 'Stop'
-$SCRIPTS_DIR = $PSScriptRoot
+$SCRIPTS_DIR  = $PSScriptRoot
 $PROJECT_ROOT = Split-Path $SCRIPTS_DIR
 
-Write-Host "`n══════════════════════════════════════════════════" -ForegroundColor Cyan
-Write-Host "  Metrolink FOMS — Installer Builder" -ForegroundColor Cyan
-Write-Host "══════════════════════════════════════════════════`n" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "  Metrolink FOMS - Installer Builder" -ForegroundColor Cyan
+Write-Host ""
 
-# ── 1. Locate or install Inno Setup ──────────────────────────
-Write-Host "  ► Checking Inno Setup..." -ForegroundColor White
+# -- 1. Locate or install Inno Setup --------------------------
+Write-Host "  Checking Inno Setup..." -ForegroundColor White
 
-$isccExe = Get-Command iscc -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Source -ErrorAction SilentlyContinue
+$isccExe = $null
+
+$cmd = Get-Command iscc -ErrorAction SilentlyContinue
+if ($cmd) { $isccExe = $cmd.Source }
 
 if (-not $isccExe) {
-    # Try common install paths
     $candidates = @(
         "$env:ProgramFiles (x86)\Inno Setup 6\ISCC.exe",
         "$env:ProgramFiles\Inno Setup 6\ISCC.exe",
@@ -35,37 +32,36 @@ if (-not $isccExe) {
 }
 
 if (-not $isccExe) {
-    Write-Host "    [--] Inno Setup not found — installing via winget..." -ForegroundColor DarkYellow
+    Write-Host "  Inno Setup not found - installing via winget..." -ForegroundColor DarkYellow
     $hasWinget = $null -ne (Get-Command winget -ErrorAction SilentlyContinue)
     if ($hasWinget) {
         winget install --id JRSoftware.InnoSetup --exact --silent --accept-package-agreements --accept-source-agreements
-        # Refresh PATH and search again
         $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" +
                     [System.Environment]::GetEnvironmentVariable("Path","User")
-        $isccExe = (Get-Command iscc -ErrorAction SilentlyContinue)?.Source
+        $cmd2 = Get-Command iscc -ErrorAction SilentlyContinue
+        if ($cmd2) { $isccExe = $cmd2.Source }
         if (-not $isccExe) {
-            # Re-scan common paths after install
-            $candidates | ForEach-Object { if (Test-Path $_) { $isccExe = $_ } }
+            foreach ($c in $candidates) { if (Test-Path $c) { $isccExe = $c } }
         }
     }
     if (-not $isccExe) {
-        Write-Host "`n  [XX] Inno Setup could not be installed automatically." -ForegroundColor Red
-        Write-Host "       Download and install from: https://jrsoftware.org/isdl.php" -ForegroundColor Yellow
-        Write-Host "       Then re-run this script.`n" -ForegroundColor Yellow
+        Write-Host "  [ERROR] Inno Setup could not be installed automatically." -ForegroundColor Red
+        Write-Host "  Download from: https://jrsoftware.org/isdl.php then re-run." -ForegroundColor Yellow
         exit 1
     }
 }
-Write-Host "    [OK] Inno Setup found: $isccExe" -ForegroundColor Green
+Write-Host "  [OK] Inno Setup: $isccExe" -ForegroundColor Green
 
-# ── 2. Ensure pre-built WAR exists ───────────────────────────
-Write-Host "`n  ► Checking backend WAR..." -ForegroundColor White
+# -- 2. Ensure WAR exists -------------------------------------
+Write-Host ""
+Write-Host "  Checking backend WAR..." -ForegroundColor White
 $warPath = Join-Path $PROJECT_ROOT "target\metrolink-backend.war"
 
 if (-not (Test-Path $warPath)) {
-    Write-Host "    [--] WAR not found — building with Maven..." -ForegroundColor DarkYellow
-    $mvnExe = Get-Command mvn -ErrorAction SilentlyContinue
-    if (-not $mvnExe) {
-        Write-Host "  [XX] Maven not found. Install Maven or build manually first: mvn clean package" -ForegroundColor Red
+    Write-Host "  WAR not found - building with Maven..." -ForegroundColor DarkYellow
+    $mvnCmd = Get-Command mvn -ErrorAction SilentlyContinue
+    if (-not $mvnCmd) {
+        Write-Host "  [ERROR] Maven not found. Run: mvn clean package" -ForegroundColor Red
         exit 1
     }
     Push-Location $PROJECT_ROOT
@@ -73,41 +69,39 @@ if (-not (Test-Path $warPath)) {
     $buildOk = $LASTEXITCODE -eq 0
     Pop-Location
     if (-not $buildOk) {
-        Write-Host "  [XX] Maven build failed. Fix build errors and re-run." -ForegroundColor Red
+        Write-Host "  [ERROR] Maven build failed." -ForegroundColor Red
         exit 1
     }
-    Write-Host "    [OK] WAR built: $warPath" -ForegroundColor Green
-} else {
-    Write-Host "    [OK] WAR found: $warPath" -ForegroundColor Green
+}
+Write-Host "  [OK] WAR: $warPath" -ForegroundColor Green
+
+# -- 3. Warn if desktop app binaries missing ------------------
+$desktopExe = Join-Path $PROJECT_ROOT "desktop-app\MetrolinkDesktop\bin\Release\net9.0-windows\win-x64\MetrolinkDesktop.exe"
+if (-not (Test-Path $desktopExe)) {
+    Write-Host ""
+    Write-Host "  [WARN] Desktop app binary not found:" -ForegroundColor Yellow
+    Write-Host "  $desktopExe" -ForegroundColor Yellow
+    Write-Host "  Build it first: cd desktop-app\MetrolinkDesktop && dotnet publish -c Release" -ForegroundColor Yellow
 }
 
-# ── 3. Ensure desktop app release binaries exist ─────────────
-$desktopAppRelease = Join-Path $PROJECT_ROOT "desktop-app\MetrolinkDesktop\bin\Release\net9.0-windows\win-x64\MetrolinkDesktop.exe"
-if (-not (Test-Path $desktopAppRelease)) {
-    Write-Host "`n  [!!] Desktop app binaries not found at expected path:" -ForegroundColor Yellow
-    Write-Host "       $desktopAppRelease" -ForegroundColor Yellow
-    Write-Host "       Build it first: cd desktop-app\MetrolinkDesktop && dotnet publish -c Release" -ForegroundColor Yellow
-    Write-Host "       (Continuing anyway — installer will fail at [Files] if missing)`n" -ForegroundColor Yellow
-}
-
-# ── 4. Create dist\ output folder ────────────────────────────
+# -- 4. Create dist\ ------------------------------------------
 $distDir = Join-Path $PROJECT_ROOT "dist"
 New-Item -ItemType Directory -Path $distDir -Force | Out-Null
 
-# ── 5. Compile the installer ─────────────────────────────────
-Write-Host "`n  ► Compiling installer..." -ForegroundColor White
+# -- 5. Compile -----------------------------------------------
+Write-Host ""
+Write-Host "  Compiling installer..." -ForegroundColor White
 $issFile = Join-Path $SCRIPTS_DIR "setup.iss"
 
 & $isccExe $issFile
-$compileOk = $LASTEXITCODE -eq 0
+$ok = $LASTEXITCODE -eq 0
 
-if ($compileOk) {
-    $outputExe = Join-Path $distDir "Metrolink FOMS Setup.exe"
-    Write-Host "`n  ══════════════════════════════════════════════════" -ForegroundColor Green
-    Write-Host "    Build successful!" -ForegroundColor Green
-    Write-Host "    Output: $outputExe" -ForegroundColor Green
-    Write-Host "  ══════════════════════════════════════════════════`n" -ForegroundColor Green
+if ($ok) {
+    $out = Join-Path $distDir "Metrolink FOMS Setup.exe"
+    Write-Host ""
+    Write-Host "  Build successful!" -ForegroundColor Green
+    Write-Host "  Output: $out" -ForegroundColor Green
 } else {
-    Write-Host "`n  [XX] Inno Setup compilation failed. Check errors above." -ForegroundColor Red
+    Write-Host "  [ERROR] Inno Setup compilation failed." -ForegroundColor Red
     exit 1
 }

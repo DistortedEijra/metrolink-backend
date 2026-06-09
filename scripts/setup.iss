@@ -41,8 +41,8 @@ MinVersion=10.0
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Tasks]
-Name: "desktopicon";    Description: "Create a &desktop shortcut";       GroupDescription: "Additional icons:"; Flags: checked
-Name: "startmenuicon";  Description: "Create a &Start Menu shortcut";    GroupDescription: "Additional icons:"; Flags: checked
+Name: "desktopicon";    Description: "Create a &desktop shortcut";    GroupDescription: "Additional icons:"
+Name: "startmenuicon";  Description: "Create a &Start Menu shortcut";  GroupDescription: "Additional icons:"
 
 [Files]
 ; ── Pre-built backend WAR ────────────────────────────────────
@@ -56,8 +56,7 @@ Source: "..\src\main\resources\config.properties.example"; DestDir: "{app}\backe
 Source: "..\frontend\*"; DestDir: "{app}\frontend"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; ── Desktop app (WinForms + WebView2) ────────────────────────
-Source: "..\desktop-app\MetrolinkDesktop\bin\Release\net9.0-windows\win-x64\*";
-  DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "..\desktop-app\MetrolinkDesktop\bin\Release\net9.0-windows\win-x64\*"; DestDir: "{app}\app"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 ; ── Console launcher ────────────────────────────────────────
 Source: "..\launcher\*"; DestDir: "{app}\launcher"; Flags: ignoreversion recursesubdirs createallsubdirs
