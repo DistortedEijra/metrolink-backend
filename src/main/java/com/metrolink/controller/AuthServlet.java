@@ -38,15 +38,21 @@ public class AuthServlet extends HttpServlet {
 
             User user = userDAO.findByUsername(username.trim());
 
-            if (user == null || !user.isActive()) {
-                auditDAO.log(null, username, "LOGIN_FAILED", "USER", null, "Account not found or inactive");
-                ResponseUtil.error(res, 401, "Invalid credentials or account inactive");
+            if (user == null) {
+                auditDAO.log(null, username, "LOGIN_FAILED", "USER", null, "Account not found");
+                ResponseUtil.error(res, 401, "Invalid username or password.");
+                return;
+            }
+
+            if (!user.isActive()) {
+                auditDAO.log(user.getId(), username, "LOGIN_FAILED", "USER", user.getId(), "Account deactivated");
+                ResponseUtil.error(res, 401, "Your account has been deactivated. Please contact the administrator.");
                 return;
             }
 
             if (!BCrypt.checkpw(password, user.getPassword())) {
                 auditDAO.log(user.getId(), username, "LOGIN_FAILED", "USER", user.getId(), "Bad password");
-                ResponseUtil.error(res, 401, "Invalid credentials or account inactive");
+                ResponseUtil.error(res, 401, "Invalid username or password.");
                 return;
             }
 

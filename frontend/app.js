@@ -354,6 +354,13 @@ async function doLogin(e) {
     saveSession(data);
     go('trips');
   } catch (err) {
+    if ((err.message || '').toLowerCase().includes('deactivated')) {
+      _showLoginError(`<i class="fas fa-ban me-1"></i>${err.message}`, true);
+      toast(err.message, 'danger');
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>LOGIN';
+      return;
+    }
     _loginFailCount++;
     if (_loginFailCount >= LOGIN_MAX_ATTEMPTS) {
       // Lock out
