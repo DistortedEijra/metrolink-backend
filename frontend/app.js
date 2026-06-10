@@ -119,6 +119,39 @@ function setRowCount(containerId, count, label = 'record') {
   el.textContent = count === 0 ? 'No records' : `${count} ${label}${count !== 1 ? 's' : ''}`;
 }
 
+// ── Generic pagination helpers ──────────────────────────────
+const PAGE_SIZE = 15;
+
+function clampPage(total, page, pageSize = PAGE_SIZE) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  return Math.min(Math.max(1, page), totalPages);
+}
+
+function paginate(rows, page, pageSize = PAGE_SIZE) {
+  const start = (page - 1) * pageSize;
+  return rows.slice(start, start + pageSize);
+}
+
+function renderPager(containerId, total, page, fnName, pageSize = PAGE_SIZE) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  if (totalPages <= 1) { el.innerHTML = ''; return; }
+  let items = '';
+  for (let i = 1; i <= totalPages; i++) {
+    if (i === 1 || i === totalPages || Math.abs(i - page) <= 1) {
+      items += `<li class="page-item ${i === page ? 'active' : ''}"><a class="page-link" href="#" onclick="event.preventDefault();${fnName}(${i})">${i}</a></li>`;
+    } else if (i === 2 || i === totalPages - 1) {
+      items += `<li class="page-item disabled"><span class="page-link">…</span></li>`;
+    }
+  }
+  el.innerHTML = `<nav class="mt-2"><ul class="pagination pagination-sm justify-content-end mb-0 flex-wrap">
+    <li class="page-item ${page <= 1 ? 'disabled' : ''}"><a class="page-link" href="#" onclick="event.preventDefault();${fnName}(${page - 1})">&laquo;</a></li>
+    ${items}
+    <li class="page-item ${page >= totalPages ? 'disabled' : ''}"><a class="page-link" href="#" onclick="event.preventDefault();${fnName}(${page + 1})">&raquo;</a></li>
+  </ul></nav>`;
+}
+
 // ── Navigate ───────────────────────────────────────────────
 function go(page) {
   if (!getToken() && page !== 'login') { renderLogin(); return; }
@@ -373,6 +406,7 @@ function _startLoginCooldown() {
 // TRIPS
 // ══════════════════════════════════════════════════════════
 let tripBuses = [], tripDrivers = [], tripConductors = [], tripsList = [];
+let _tripPage = 1, _tripRows = [];
 
 async function renderTrips() {
   shell('trips', `
@@ -405,6 +439,7 @@ async function renderTrips() {
           </tbody>
         </table>
       </div>
+      <div id="tripPager"></div>
     </div>
     ${getTripModal()}${getIncomeExpModal()}${getArrivalModal()}`);
 
@@ -421,15 +456,19 @@ async function renderTrips() {
   } catch { renderTripRows([]); }
 }
 
-function renderTripRows(rows) {
+function renderTripRows(rows, resetPage = true) {
   const tbody = document.getElementById('tripBody');
   if (!tbody) return;
+  _tripRows = rows;
+  if (resetPage) _tripPage = 1;
   setRowCount('tripCount', rows.length, 'trip');
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="9" class="table-empty"><i class="fas fa-route"></i>No trips found</td></tr>`;
+    document.getElementById('tripPager').innerHTML = '';
     return;
   }
-  tbody.innerHTML = rows.map(t => `
+  _tripPage = clampPage(rows.length, _tripPage);
+  tbody.innerHTML = paginate(rows, _tripPage).map(t => `
     <tr>
       <td>${t.tripDate}</td>
       <td><strong>${dash(t.busNumber)}</strong></td>
@@ -449,6 +488,12 @@ function renderTripRows(rows) {
         ${isAdmin() ? `<button class="btn btn-outline-secondary btn-icon" onclick="openEditTrip(${t.id})" title="Edit Trip"><i class="fas fa-edit"></i></button>` : ''}
       </td>
     </tr>`).join('');
+  renderPager('tripPager', rows.length, _tripPage, 'changeTripPage');
+}
+
+function changeTripPage(p) {
+  _tripPage = p;
+  renderTripRows(_tripRows, false);
 }
 
 async function refreshTripTable() {
@@ -457,11 +502,11 @@ async function refreshTripTable() {
   tripsList = await api('/trips');
 
   if (search) {
-    renderTripRows(await api(`/trips/search?q=${encodeURIComponent(search)}`));
+    renderTripRows(await api(`/trips/search?q=${encodeURIComponent(search)}`), false);
   } else if (date) {
-    renderTripRows(await api(`/trips/date?date=${date}`));
+    renderTripRows(await api(`/trips/date?date=${date}`), false);
   } else {
-    renderTripRows(tripsList);
+    renderTripRows(tripsList, false);
   }
 }
 
@@ -946,6 +991,7 @@ async function renderEmployees() {
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
         </table>
       </div>
+      <div id="empPager"></div>
     </div>
     ${getEmployeeModal()}`);
 
@@ -956,15 +1002,20 @@ async function renderEmployees() {
   } catch { renderEmployeeRows([]); }
 }
 
-function renderEmployeeRows(rows) {
+let _empPage = 1;
+
+function renderEmployeeRows(rows, resetPage = true) {
   const tbody = document.getElementById('empBody');
   if (!tbody) return;
+  if (resetPage) _empPage = 1;
   setRowCount('empCount', rows.length, 'employee');
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="8" class="table-empty"><i class="fas fa-users"></i>No employees found</td></tr>`;
+    document.getElementById('empPager').innerHTML = '';
     return;
   }
-  tbody.innerHTML = rows.map(e => `
+  _empPage = clampPage(rows.length, _empPage);
+  tbody.innerHTML = paginate(rows, _empPage).map(e => `
     <tr>
       <td><code>${e.employeeCode}</code></td>
       <td><strong>${e.fullName}</strong></td>
@@ -982,15 +1033,21 @@ function renderEmployeeRows(rows) {
         </button>
       </td>` : ''}
     </tr>`).join('');
+  renderPager('empPager', rows.length, _empPage, 'changeEmpPage');
 }
 
-function filterEmployeeRows(q) {
-  const search = (q || document.getElementById('empSearch')?.value || '').toLowerCase();
+function changeEmpPage(p) {
+  _empPage = p;
+  filterEmployeeRows(undefined, false);
+}
+
+function filterEmployeeRows(q, resetPage = true) {
+  const search = (q ?? document.getElementById('empSearch')?.value ?? '').toLowerCase();
   const pos    = document.getElementById('empPosFilter')?.value || '';
   const rows   = (window._emps || []).filter(e =>
     (!search || e.fullName.toLowerCase().includes(search) || e.employeeCode.toLowerCase().includes(search)) &&
     (!pos || e.position === pos));
-  renderEmployeeRows(rows);
+  renderEmployeeRows(rows, resetPage);
 }
 
 function getEmployeeModal() {
@@ -1144,6 +1201,7 @@ async function renderBuses() {
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
         </table>
       </div>
+      <div id="busPager"></div>
     </div>
     ${getBusModal()}`);
 
@@ -1154,14 +1212,19 @@ async function renderBuses() {
   } catch { renderBusRows([]); }
 }
 
-function renderBusRows(rows) {
+let _busPage = 1;
+
+function renderBusRows(rows, resetPage = true) {
   const tbody = document.getElementById('busBody');
   if (!tbody) return;
+  if (resetPage) _busPage = 1;
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="5" class="table-empty"><i class="fas fa-bus"></i>No buses found</td></tr>`;
+    document.getElementById('busPager').innerHTML = '';
     return;
   }
-  tbody.innerHTML = rows.map(b => `
+  _busPage = clampPage(rows.length, _busPage);
+  tbody.innerHTML = paginate(rows, _busPage).map(b => `
     <tr>
       <td><strong>${b.busNumber}</strong></td>
       <td>${b.plateNo}</td>
@@ -1174,6 +1237,12 @@ function renderBusRows(rows) {
         ${b.status !== 'INACTIVE'    ? `<button class="btn btn-outline-danger btn-icon" onclick="setBusStatus(${b.id},'INACTIVE')" title="Deactivate"><i class="fas fa-ban"></i></button>` : ''}
       </td>` : ''}
     </tr>`).join('');
+  renderPager('busPager', rows.length, _busPage, 'changeBusPage');
+}
+
+function changeBusPage(p) {
+  _busPage = p;
+  renderBusRows(window._buses || [], false);
 }
 
 function getBusModal() {
@@ -1296,6 +1365,8 @@ async function renderReports() {
   loadReport('summary');
 }
 
+let _reportRows = [], _reportType = '', _reportPage = 1;
+
 async function loadReport(type) {
   const from = document.getElementById('rFrom').value;
   const to   = document.getElementById('rTo').value;
@@ -1319,66 +1390,98 @@ async function loadReport(type) {
           </div>
         </div>`;
     } else if (type === 'trips') {
-      const rows = await api(`/reports/trips?from=${from}&to=${to}`);
-      cont.innerHTML = `
-        <div class="content-card">
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead><tr><th>Date</th><th>Bus</th><th>Driver</th><th>Conductor</th>
-                <th>Trips</th><th>Gross</th><th>Net Income</th><th>Expenses</th><th>Net Profit</th><th>Modified</th></tr></thead>
-              <tbody>${!rows.length ? `<tr><td colspan="10" class="table-empty">No data for selected range</td></tr>` :
-                rows.map(r => `<tr>
-                  <td>${r.tripDate}</td><td>${r.busNumber}</td><td>${r.driverName}</td><td>${r.conductorName}</td>
-                  <td class="text-center">${r.tripCount}</td>
-                  <td>${peso(r.grossIncome)}</td><td>${peso(r.netIncome)}</td>
-                  <td>${peso(r.totalExpenses)}</td>
-                  <td class="${(r.netProfit||0)<0?'text-danger fw-bold':''}">${peso(r.netProfit)}</td>
-                  <td>${r.isModified?'<span class="status-badge status-modified">Yes</span>':'—'}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
+      _reportRows = await api(`/reports/trips?from=${from}&to=${to}`);
+      _reportType = 'trips';
+      _reportPage = 1;
+      renderReportRows();
     } else if (type === 'low-income') {
-      const rows = await api(`/reports/low-income?from=${from}&to=${to}`);
-      cont.innerHTML = `
-        <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:0.8rem">
-          <i class="fas fa-exclamation-triangle me-1"></i>Showing trips where Gross Income < ₱13,000 (below quota)
-        </div>
-        <div class="content-card">
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead><tr><th>Date</th><th>Bus</th><th>Driver</th><th>Conductor</th><th>Gross Income</th><th>Net Income</th></tr></thead>
-              <tbody>${!rows.length ? `<tr><td colspan="6" class="table-empty"><i class="fas fa-check-circle text-success"></i>No low-income trips!</td></tr>` :
-                rows.map(r => `<tr>
-                  <td>${r.tripDate}</td><td>${r.busNumber}</td><td>${r.driverName}</td><td>${r.conductorName}</td>
-                  <td class="text-danger fw-bold">${peso(r.grossIncome)}</td><td>${peso(r.netIncome)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
+      _reportRows = await api(`/reports/low-income?from=${from}&to=${to}`);
+      _reportType = 'low-income';
+      _reportPage = 1;
+      renderReportRows();
     } else if (type === 'changelog') {
-      const rows = await api(`/reports/changelog?from=${from}&to=${to}`);
-      cont.innerHTML = `
-        <div class="content-card">
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead><tr><th>Date</th><th>Trip ID</th><th>Changed By</th><th>Type</th><th>Changed At</th></tr></thead>
-              <tbody>${!rows.length ? `<tr><td colspan="5" class="table-empty">No edits in this period</td></tr>` :
-                rows.map(r => `<tr>
-                  <td>${r.tripDate}</td><td>#${r.tripId}</td><td>${r.changedByName}</td>
-                  <td><span class="status-badge status-modified">${r.changeType}</span></td>
-                  <td>${r.changedAt ? new Date(r.changedAt).toLocaleString('en-PH') : '—'}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`;
+      _reportRows = await api(`/reports/changelog?from=${from}&to=${to}`);
+      _reportType = 'changelog';
+      _reportPage = 1;
+      renderReportRows();
     }
   } catch {
     cont.innerHTML = '<div class="alert alert-danger">Failed to load report.</div>';
   }
+}
+
+function renderReportRows() {
+  const cont = document.getElementById('reportContent');
+  const rows = _reportRows;
+  _reportPage = clampPage(rows.length, _reportPage);
+  const pageRows = paginate(rows, _reportPage);
+
+  let html;
+  if (_reportType === 'trips') {
+    html = `
+      <div class="content-card">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Date</th><th>Bus</th><th>Driver</th><th>Conductor</th>
+              <th>Trips</th><th>Gross</th><th>Net Income</th><th>Expenses</th><th>Net Profit</th><th>Modified</th></tr></thead>
+            <tbody>${!rows.length ? `<tr><td colspan="10" class="table-empty">No data for selected range</td></tr>` :
+              pageRows.map(r => `<tr>
+                <td>${r.tripDate}</td><td>${r.busNumber}</td><td>${r.driverName}</td><td>${r.conductorName}</td>
+                <td class="text-center">${r.tripCount}</td>
+                <td>${peso(r.grossIncome)}</td><td>${peso(r.netIncome)}</td>
+                <td>${peso(r.totalExpenses)}</td>
+                <td class="${(r.netProfit||0)<0?'text-danger fw-bold':''}">${peso(r.netProfit)}</td>
+                <td>${r.isModified?'<span class="status-badge status-modified">Yes</span>':'—'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div id="reportPager"></div>
+      </div>`;
+  } else if (_reportType === 'low-income') {
+    html = `
+      <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:0.8rem">
+        <i class="fas fa-exclamation-triangle me-1"></i>Showing trips where Gross Income < ₱13,000 (below quota)
+      </div>
+      <div class="content-card">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Date</th><th>Bus</th><th>Driver</th><th>Conductor</th><th>Gross Income</th><th>Net Income</th></tr></thead>
+            <tbody>${!rows.length ? `<tr><td colspan="6" class="table-empty"><i class="fas fa-check-circle text-success"></i>No low-income trips!</td></tr>` :
+              pageRows.map(r => `<tr>
+                <td>${r.tripDate}</td><td>${r.busNumber}</td><td>${r.driverName}</td><td>${r.conductorName}</td>
+                <td class="text-danger fw-bold">${peso(r.grossIncome)}</td><td>${peso(r.netIncome)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div id="reportPager"></div>
+      </div>`;
+  } else if (_reportType === 'changelog') {
+    html = `
+      <div class="content-card">
+        <div class="table-responsive">
+          <table class="table table-hover mb-0">
+            <thead><tr><th>Date</th><th>Trip ID</th><th>Changed By</th><th>Type</th><th>Changed At</th></tr></thead>
+            <tbody>${!rows.length ? `<tr><td colspan="5" class="table-empty">No edits in this period</td></tr>` :
+              pageRows.map(r => `<tr>
+                <td>${r.tripDate}</td><td>#${r.tripId}</td><td>${r.changedByName}</td>
+                <td><span class="status-badge status-modified">${r.changeType}</span></td>
+                <td>${r.changedAt ? new Date(r.changedAt).toLocaleString('en-PH') : '—'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div id="reportPager"></div>
+      </div>`;
+  }
+  cont.innerHTML = html;
+  renderPager('reportPager', rows.length, _reportPage, 'changeReportPage');
+}
+
+function changeReportPage(p) {
+  _reportPage = p;
+  renderReportRows();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -1534,6 +1637,7 @@ async function renderUsers() {
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
         </table>
       </div>
+      <div id="userPager"></div>
     </div>
     ${getUserModal()}`);
 
@@ -1544,15 +1648,20 @@ async function renderUsers() {
   } catch { renderUserRows([]); }
 }
 
-function renderUserRows(rows) {
+let _userPage = 1;
+
+function renderUserRows(rows, resetPage = true) {
   const tbody = document.getElementById('userBody');
   if (!tbody) return;
+  if (resetPage) _userPage = 1;
   if (!rows.length) {
     tbody.innerHTML = `<tr><td colspan="5" class="table-empty"><i class="fas fa-user-cog"></i>No users found</td></tr>`;
+    document.getElementById('userPager').innerHTML = '';
     return;
   }
+  _userPage = clampPage(rows.length, _userPage);
   const me = getUser();
-  tbody.innerHTML = rows.map(u => `
+  tbody.innerHTML = paginate(rows, _userPage).map(u => `
     <tr>
       <td><code>${u.username}</code></td>
       <td><strong>${u.fullName}</strong></td>
@@ -1567,6 +1676,12 @@ function renderUserRows(rows) {
           <i class="fas ${u.isActive ? 'fa-ban' : 'fa-check'}"></i></button>` : ''}
       </td>
     </tr>`).join('');
+  renderPager('userPager', rows.length, _userPage, 'changeUserPage');
+}
+
+function changeUserPage(p) {
+  _userPage = p;
+  renderUserRows(window._users || [], false);
 }
 
 function getUserModal() {
@@ -1821,44 +1936,60 @@ async function renderAudit() {
   loadAuditLog();
 }
 
+let _auditRows = [], _auditPage = 1;
+
 async function loadAuditLog() {
   const from = document.getElementById('auditFrom').value;
   const to   = document.getElementById('auditTo').value;
   const wrap = document.getElementById('auditTableWrap');
   wrap.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin"></i> Loading…</div>';
   try {
-    const rows = await api(`/audit?from=${from}&to=${to}`);
-    if (!rows.length) {
-      wrap.innerHTML = '<div class="alert alert-info">No audit entries found for this period.</div>';
-      return;
-    }
-    const actionBadge = a => {
-      if (a.startsWith('LOGIN'))          return `<span class="badge bg-primary">${a}</span>`;
-      if (a.startsWith('CREATE'))         return `<span class="badge bg-success">${a}</span>`;
-      if (a.startsWith('UPDATE'))         return `<span class="badge bg-warning text-dark">${a}</span>`;
-      return                                     `<span class="badge bg-danger">${a}</span>`;
-    };
-    wrap.innerHTML = `
-      <div class="table-responsive">
-        <table class="table table-hover table-sm">
-          <thead><tr>
-            <th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th>
-          </tr></thead>
-          <tbody>
-            ${rows.map(r => `<tr>
-              <td class="text-nowrap">${r.loggedAt ? new Date(r.loggedAt).toLocaleString('en-PH') : '—'}</td>
-              <td>${r.username}</td>
-              <td>${actionBadge(r.action)}</td>
-              <td>${r.entity || '—'}</td>
-              <td>${r.entityId != null ? r.entityId : '—'}</td>
-              <td>${r.details || '—'}</td>
-            </tr>`).join('')}
-          </tbody>
-        </table>
-      </div>`;
+    _auditRows = await api(`/audit?from=${from}&to=${to}`);
+    _auditPage = 1;
+    renderAuditRows();
   } catch {
     wrap.innerHTML = '<div class="alert alert-danger">Failed to load audit log.</div>';
   }
+}
+
+function renderAuditRows() {
+  const wrap = document.getElementById('auditTableWrap');
+  if (!_auditRows.length) {
+    wrap.innerHTML = '<div class="alert alert-info">No audit entries found for this period.</div>';
+    return;
+  }
+  const actionBadge = a => {
+    if (a.startsWith('LOGIN'))          return `<span class="badge bg-primary">${a}</span>`;
+    if (a.startsWith('CREATE'))         return `<span class="badge bg-success">${a}</span>`;
+    if (a.startsWith('UPDATE'))         return `<span class="badge bg-warning text-dark">${a}</span>`;
+    return                                     `<span class="badge bg-danger">${a}</span>`;
+  };
+  _auditPage = clampPage(_auditRows.length, _auditPage);
+  wrap.innerHTML = `
+    <div class="table-responsive">
+      <table class="table table-hover table-sm">
+        <thead><tr>
+          <th>Time</th><th>User</th><th>Action</th><th>Entity</th><th>ID</th><th>Details</th>
+        </tr></thead>
+        <tbody>
+          ${paginate(_auditRows, _auditPage).map(r => `<tr>
+            <td class="text-nowrap">${r.loggedAt ? new Date(r.loggedAt).toLocaleString('en-PH') : '—'}</td>
+            <td>${r.username}</td>
+            <td>${actionBadge(r.action)}</td>
+            <td>${r.entity || '—'}</td>
+            <td>${r.entityId != null ? r.entityId : '—'}</td>
+            <td>${r.details || '—'}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+    <div id="auditPager"></div>`;
+  renderPager('auditPager', _auditRows.length, _auditPage, 'changeAuditPage');
+}
+
+function changeAuditPage(p) {
+  _auditPage = p;
+  renderAuditRows();
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2250,13 +2381,19 @@ const _posBadge = p => `<span class="status-badge ${{DRIVER:'status-driver',COND
 
 // ── Daily Payroll tab (Drivers & Conductors) ─────────────
 let _dailyPayrollDate = 'all';
+let _payrollPage = 1;
 
 function changeDailyPayrollDate(val) {
   _dailyPayrollDate = val;
   loadDailyPayroll();
 }
 
-async function loadDailyPayroll() {
+function changePayrollPage(p) {
+  _payrollPage = p;
+  loadDailyPayroll(false);
+}
+
+async function loadDailyPayroll(resetPage = true) {
   const { from, to } = _financePeriod;
   const el = document.getElementById('financeContent');
   if (!el) return;
@@ -2278,6 +2415,10 @@ async function loadDailyPayroll() {
     const rowData = _dailyPayrollDate === 'all'
       ? allRows
       : allRows.filter(r => r.tripDate === _dailyPayrollDate);
+
+    if (resetPage) _payrollPage = 1;
+    _payrollPage = clampPage(rowData.length, _payrollPage);
+    const pageRows = paginate(rowData, _payrollPage);
 
     const totalNet = rowData.reduce((s, r) => s + Number(r.netPay || 0), 0);
     const paidCount = records.filter(r => r.status === 'PAID' && (_dailyPayrollDate === 'all' || r.tripDate === _dailyPayrollDate)).length;
@@ -2316,7 +2457,7 @@ async function loadDailyPayroll() {
             <th>Status</th><th></th>
           </tr></thead>
           <tbody>
-            ${rowData.map(r => {
+            ${pageRows.map(r => {
               const dateStr = new Date(r.tripDate + 'T00:00:00').toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'});
               return `<tr>
                 <td class="text-nowrap small fw-semibold">${dateStr}</td>
@@ -2334,7 +2475,9 @@ async function loadDailyPayroll() {
             }).join('')}
           </tbody>
         </table>
-      </div>`;
+      </div>
+      <div id="payrollPager"></div>`;
+    renderPager('payrollPager', rowData.length, _payrollPage, 'changePayrollPage');
   } catch {
     el.innerHTML = '<div class="alert alert-danger">Failed to load daily payroll.</div>';
   }
@@ -2408,7 +2551,7 @@ async function generatePayroll(from, to, type) {
     const r = await api('/payroll/generate', 'POST', { from, to });
     toast(`${r.generated} record(s) generated`);
     if (type === 'bimonthly') loadBiMonthlyPayroll();
-    else loadDailyPayroll();
+    else loadDailyPayroll(false);
   } catch {}
 }
 
@@ -2424,7 +2567,7 @@ async function markPayrollPaid(id) {
     await api(`/payroll/${id}/pay`, 'PATCH');
     toast('Marked as paid');
     if (_financeTab === 'bimonthly') loadBiMonthlyPayroll();
-    else loadDailyPayroll();
+    else loadDailyPayroll(false);
   } catch {}
 }
 
