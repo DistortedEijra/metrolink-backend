@@ -27,7 +27,7 @@ public class PayrollDAO {
             "LEFT JOIN expenses ex ON ex.trip_id = t.id " +
             "WHERE e.position = 'DRIVER' " +
             "GROUP BY e.id, e.full_name, e.employee_code, e.position, t.trip_date " +
-            "ORDER BY t.trip_date, e.full_name";
+            "ORDER BY t.trip_date DESC, e.full_name";
 
         // Conductors: one row per employee per working day
         String conductorSql =
@@ -43,7 +43,7 @@ public class PayrollDAO {
             "JOIN income i ON i.trip_id = t.id " +
             "WHERE e.position = 'CONDUCTOR' " +
             "GROUP BY e.id, e.full_name, e.employee_code, e.position, t.trip_date " +
-            "ORDER BY t.trip_date, e.full_name";
+            "ORDER BY t.trip_date DESC, e.full_name";
 
         // Fixed staff: one row per employee, trip_date = NULL
         String fixedSql =
@@ -204,7 +204,7 @@ public class PayrollDAO {
             "JOIN employees e ON pr.employee_id = e.id " +
             "LEFT JOIN users u ON pr.paid_by = u.id " +
             "WHERE pr.period_start = ? AND pr.period_end = ? " +
-            "ORDER BY ISNULL(pr.trip_date), pr.trip_date, e.position, e.full_name";
+            "ORDER BY ISNULL(pr.trip_date), pr.trip_date DESC, e.position, e.full_name";
 
         List<Map<String, Object>> rows = new ArrayList<>();
         try (Connection c = DatabaseConfig.getConnection();

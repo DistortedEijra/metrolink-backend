@@ -2251,6 +2251,13 @@ function _payrollActionBtn(r, hasRecords) {
 const _posBadge = p => `<span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[p]||''}">${p}</span>`;
 
 // ── Daily Payroll tab (Drivers & Conductors) ─────────────
+let _dailyPayrollDate = 'all';
+
+function changeDailyPayrollDate(val) {
+  _dailyPayrollDate = val;
+  loadDailyPayroll();
+}
+
 async function loadDailyPayroll() {
   const { from, to } = _financePeriod;
   const el = document.getElementById('financeContent');
@@ -2264,16 +2271,37 @@ async function loadDailyPayroll() {
     const records  = allRec.filter(r => r.tripDate != null);
     const computed = allComp.filter(r => r.tripDate != null);
     const hasRecords = records.length > 0;
-    const rowData  = hasRecords ? records : computed;
+    const allRows  = hasRecords ? records : computed;
+
+    // Distinct trip dates in this period, latest first
+    const dates = [...new Set(allRows.map(r => r.tripDate))].sort((a, b) => b.localeCompare(a));
+    if (_dailyPayrollDate !== 'all' && !dates.includes(_dailyPayrollDate)) _dailyPayrollDate = dates[0] || 'all';
+
+    const rowData = _dailyPayrollDate === 'all'
+      ? allRows
+      : allRows.filter(r => r.tripDate === _dailyPayrollDate);
+
     const totalNet = rowData.reduce((s, r) => s + Number(r.netPay || 0), 0);
-    const paidCount = records.filter(r => r.status === 'PAID').length;
+    const paidCount = records.filter(r => r.status === 'PAID' && (_dailyPayrollDate === 'all' || r.tripDate === _dailyPayrollDate)).length;
+    const recordsShown = records.filter(r => _dailyPayrollDate === 'all' || r.tripDate === _dailyPayrollDate).length;
+
+    const dateOptions = dates.map(d => {
+      const label = new Date(d + 'T00:00:00').toLocaleDateString('en-PH', {weekday:'short', month:'short', day:'numeric'});
+      return `<option value="${d}" ${d === _dailyPayrollDate ? 'selected' : ''}>${label}</option>`;
+    }).join('');
 
     el.innerHTML = `
       <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-        <div class="text-muted small">
-          ${hasRecords
-            ? `<span class="badge bg-secondary">${records.length} records</span> &nbsp; <span class="badge bg-success">${paidCount} paid</span> &nbsp; <span class="badge bg-warning text-dark">${records.length - paidCount} pending</span>`
-            : `<span class="badge bg-light text-dark border">Preview — not yet generated</span>`}
+        <div class="d-flex align-items-center gap-2">
+          <select class="form-select form-select-sm" style="max-width:170px" onchange="changeDailyPayrollDate(this.value)">
+            <option value="all" ${_dailyPayrollDate === 'all' ? 'selected' : ''}>All Days</option>
+            ${dateOptions}
+          </select>
+          <div class="text-muted small">
+            ${hasRecords
+              ? `<span class="badge bg-secondary">${recordsShown} records</span> &nbsp; <span class="badge bg-success">${paidCount} paid</span> &nbsp; <span class="badge bg-warning text-dark">${recordsShown - paidCount} pending</span>`
+              : `<span class="badge bg-light text-dark border">Preview — not yet generated</span>`}
+          </div>
         </div>
         <div class="d-flex gap-2 align-items-center">
           <span class="fw-bold">Total: ${peso(totalNet)}</span>
