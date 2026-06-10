@@ -1575,7 +1575,7 @@ const FEATURE_GUIDE = [
     id: 'backup', icon: 'fa-database', title: 'Backup', roles: ['ADMIN'],
     summary: 'Generate a downloadable snapshot of the entire database — admin only.',
     steps: [
-      'Click "Generate & Download Backup" to run a database dump and download a .sql file containing all current data.',
+      'Re-type your account password to confirm, then click "Generate & Download Backup" to run a database dump and download a .sql file containing all current data.',
       'Store the downloaded file somewhere safe — it can be used to restore the system in case of data loss.',
     ],
   },
@@ -1876,6 +1876,16 @@ async function renderBackup() {
         This will run <code>mysqldump</code> and generate a downloadable <code>.sql</code> file
         containing all data from the database.
       </p>
+      <div class="mb-3 text-start">
+        <label class="form-label">Confirm your password to proceed</label>
+        <div class="input-group">
+          <span class="input-group-text"><i class="fas fa-lock"></i></span>
+          <input type="password" id="backupPass" class="form-control" placeholder="Enter your account password">
+          <button type="button" class="btn btn-pass-toggle" onclick="toggleBackupPass(this)" tabindex="-1" title="Show/hide password">
+            <i class="fas fa-eye"></i>
+          </button>
+        </div>
+      </div>
       <button class="btn btn-primary" onclick="doBackup(this)">
         <i class="fas fa-download me-2"></i>Generate &amp; Download Backup
       </button>
@@ -1883,17 +1893,43 @@ async function renderBackup() {
     </div>`);
 }
 
+function toggleBackupPass(btn) {
+  const input = document.getElementById('backupPass');
+  const icon  = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'fas fa-eye-slash';
+    btn.title = 'Hide password';
+  } else {
+    input.type = 'password';
+    icon.className = 'fas fa-eye';
+    btn.title = 'Show password';
+  }
+}
+
 async function doBackup(btn) {
+  const status = document.getElementById('backupStatus');
+  const passInput = document.getElementById('backupPass');
+  const password = passInput.value;
+  if (!password) {
+    status.innerHTML = '<div class="alert alert-warning py-2">Please enter your password to confirm.</div>';
+    return;
+  }
+
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating…';
-  const status = document.getElementById('backupStatus');
+  status.innerHTML = '';
   try {
     const token = getToken();
     const res = await fetch(API + '/backup', {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password })
     });
-    if (!res.ok) { throw new Error('Backup failed'); }
+    if (!res.ok) {
+      if (res.status === 401) { throw new Error('Incorrect password.'); }
+      throw new Error('Backup failed');
+    }
     const blob = await res.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
@@ -1903,8 +1939,9 @@ async function doBackup(btn) {
     URL.revokeObjectURL(url);
     status.innerHTML = '<div class="alert alert-success py-2">Backup downloaded successfully!</div>';
     toast('Backup complete!');
-  } catch {
-    status.innerHTML = '<div class="alert alert-danger py-2">Backup failed. Check server logs.</div>';
+    passInput.value = '';
+  } catch (e) {
+    status.innerHTML = `<div class="alert alert-danger py-2">${e.message === 'Incorrect password.' ? e.message : 'Backup failed. Check server logs.'}</div>`;
   } finally {
     btn.disabled = false;
     btn.innerHTML = '<i class="fas fa-download me-2"></i>Generate &amp; Download Backup';

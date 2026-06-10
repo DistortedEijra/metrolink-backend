@@ -1,8 +1,11 @@
 package com.metrolink.controller;
 
+import com.metrolink.dao.UserDAO;
+import com.metrolink.model.User;
 import com.metrolink.util.ResponseUtil;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
+import org.mindrot.jbcrypt.BCrypt;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -19,11 +22,25 @@ import java.util.Properties;
 @WebServlet("/api/backup")
 public class BackupServlet extends HttpServlet {
 
+    private final UserDAO userDAO = new UserDAO();
+
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
             if (!"ADMIN".equals(req.getAttribute("role"))) {
                 ResponseUtil.error(res, 403, "Admin access required"); return;
+            }
+
+            Map<String, Object> body = ResponseUtil.parseBody(req);
+            String password = (String) body.get("password");
+            if (password == null || password.isEmpty()) {
+                ResponseUtil.error(res, 400, "Password confirmation is required"); return;
+            }
+
+            int userId = (int) req.getAttribute("userId");
+            User user = userDAO.findById(userId);
+            if (user == null || !BCrypt.checkpw(password, user.getPassword())) {
+                ResponseUtil.error(res, 401, "Incorrect password"); return;
             }
 
             Properties props = new Properties();
