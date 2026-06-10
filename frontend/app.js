@@ -907,14 +907,12 @@ async function saveArrivalTime() {
   const timeVal = document.getElementById('arrivalTimeInput').value;
   try {
     btn.disabled = true;
-    await api(`/trips/${tripId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ arrivalTime: timeVal ? timeVal + ':00' : null })
-    });
+    await api(`/trips/${tripId}`, 'PATCH', { arrivalTime: timeVal ? timeVal + ':00' : null });
     bootstrap.Modal.getInstance(document.getElementById('arrivalModal')).hide();
     await refreshTripTable();
+    toast(timeVal ? 'Arrival time saved!' : 'Arrival time cleared');
   } catch (e) {
-    alert('Failed to save arrival time: ' + (e.message || e));
+    toast('Failed to save arrival time: ' + (e.message || e), 'danger');
   } finally {
     btn.disabled = false;
   }
