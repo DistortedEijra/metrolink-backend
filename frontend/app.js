@@ -196,7 +196,6 @@ function shell(activePage, content) {
           <div class="brand-icon"><i class="fas fa-bus-alt"></i></div>
           <h6>METROLINK FOMS</h6>
           <small>Baclaran Bus Corp.</small>
-          <div class="brand-status"><span class="status-dot"></span>System Online</div>
         </div>
         <nav class="sidebar-nav">${navHtml}</nav>
         <div class="sidebar-footer">
