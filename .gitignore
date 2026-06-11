@@ -28,3 +28,8 @@ copy-log.txt
 
 # Installer build output
 dist/
+
+# Agent skills & workflows (local)
+.agents/
+.github/
+skills-lock.json
