@@ -40,6 +40,8 @@ public class EmployeeServlet extends HttpServlet {
         EMPLOYEE_DIFF_LABELS.put("position", "Position");
         EMPLOYEE_DIFF_LABELS.put("dailyRate", "Daily Rate");
         EMPLOYEE_DIFF_LABELS.put("biMonthlyRate", "Bi-Monthly Rate");
+        EMPLOYEE_DIFF_LABELS.put("licenseNo", "License No.");
+        EMPLOYEE_DIFF_LABELS.put("licenseExpiry", "License Expiry");
     }
 
     private Map<String, Object> employeeMap(Employee e) {
@@ -51,6 +53,8 @@ public class EmployeeServlet extends HttpServlet {
         m.put("position", e.getPosition());
         m.put("dailyRate", e.getDailyRate());
         m.put("biMonthlyRate", e.getBiMonthlyRate());
+        m.put("licenseNo", e.getLicenseNo());
+        m.put("licenseExpiry", e.getLicenseExpiry());
         return m;
     }
 
@@ -95,7 +99,10 @@ public class EmployeeServlet extends HttpServlet {
             boolean isDaily = Set.of("DRIVER","CONDUCTOR").contains(position);
             BigDecimal dailyRate     = isDaily ? new BigDecimal(body.getOrDefault("dailyRate",     1225.00).toString()) : null;
             BigDecimal biMonthlyRate = isDaily ? null : new BigDecimal(body.getOrDefault("biMonthlyRate", 0).toString());
-            Employee created = dao.create(employeeCode, fullName, birthdate, address, position, dailyRate, biMonthlyRate);
+            String licenseNo = (String) body.get("licenseNo");
+            String licenseExpiryStr = (String) body.get("licenseExpiry");
+            LocalDate licenseExpiry = (licenseExpiryStr != null && !licenseExpiryStr.isEmpty()) ? LocalDate.parse(licenseExpiryStr) : null;
+            Employee created = dao.create(employeeCode, fullName, birthdate, address, position, dailyRate, biMonthlyRate, licenseNo, licenseExpiry);
             int userId = (int) req.getAttribute("userId");
             String username = (String) req.getAttribute("username");
             auditDAO.log(userId, username, "CREATE_EMPLOYEE", "EMPLOYEE", created.getId(), "code=" + employeeCode);
@@ -124,8 +131,11 @@ public class EmployeeServlet extends HttpServlet {
             boolean isDaily = Set.of("DRIVER","CONDUCTOR").contains(position);
             BigDecimal dailyRate     = isDaily ? new BigDecimal(body.getOrDefault("dailyRate",     1225.00).toString()) : null;
             BigDecimal biMonthlyRate = isDaily ? null : new BigDecimal(body.getOrDefault("biMonthlyRate", 0).toString());
+            String licenseNo = (String) body.get("licenseNo");
+            String licenseExpiryStr = (String) body.get("licenseExpiry");
+            LocalDate licenseExpiry = (licenseExpiryStr != null && !licenseExpiryStr.isEmpty()) ? LocalDate.parse(licenseExpiryStr) : null;
             Employee before = dao.findById(id);
-            dao.update(id, fullName, birthdate, address, position, dailyRate, biMonthlyRate);
+            dao.update(id, fullName, birthdate, address, position, dailyRate, biMonthlyRate, licenseNo, licenseExpiry);
             Employee after = dao.findById(id);
             int userId = (int) req.getAttribute("userId");
             String username = (String) req.getAttribute("username");
