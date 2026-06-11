@@ -2,6 +2,7 @@ package com.metrolink.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.metrolink.dao.*;
+import com.metrolink.util.DiffUtil;
 import com.metrolink.util.ResponseUtil;
 import jakarta.servlet.annotation.WebServlet;
 import jakarta.servlet.http.*;
@@ -9,6 +10,7 @@ import jakarta.servlet.http.*;
 import jakarta.servlet.ServletException;
 import java.io.IOException;
 import java.time.LocalDate;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -33,6 +35,51 @@ public class TripServlet extends HttpServlet {
     private final EmployeeDAO  employeeDAO  = new EmployeeDAO();
     private final BusDAO       busDAO       = new BusDAO();
     private final ObjectMapper mapper       = ResponseUtil.getMapper();
+
+    private static Map<String, String> labels(String... pairs) {
+        Map<String, String> m = new LinkedHashMap<>();
+        for (int i = 0; i < pairs.length; i += 2) m.put(pairs[i], pairs[i + 1]);
+        return m;
+    }
+
+    private static final Map<String, String> TRIP_DIFF_LABELS = labels(
+        "tripDate", "Trip Date",
+        "busNumber", "Bus",
+        "driverName", "Driver",
+        "conductorName", "Conductor",
+        "dispatchTime", "Dispatch Time",
+        "arrivalTime", "Arrival Time",
+        "arrivalDate", "Arrival Date",
+        "tripCount", "Trip Count",
+        "remarks", "Remarks"
+    );
+
+    private static final Map<String, String> ARRIVAL_DIFF_LABELS = labels(
+        "arrivalTime", "Arrival Time",
+        "arrivalDate", "Arrival Date"
+    );
+
+    private static final Map<String, String> INCOME_DIFF_LABELS = labels(
+        "grossIncome", "Gross Income",
+        "driverIncome", "Driver Income",
+        "conductorIncome", "Conductor Income",
+        "driverBond", "Driver Bond",
+        "conductorBond", "Conductor Bond",
+        "commission", "Commission"
+    );
+
+    private static final Map<String, String> EXPENSES_DIFF_LABELS = labels(
+        "diesel", "Diesel",
+        "washing", "Washing",
+        "driverSalary", "Driver Salary",
+        "overtime", "Overtime",
+        "nightDiff", "Night Differential",
+        "bonus", "Bonus",
+        "cashAdvance", "Cash Advance",
+        "damages", "Damages",
+        "damageRemark", "Damage Remark",
+        "otherExpenses", "Other Expenses"
+    );
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
@@ -130,7 +177,8 @@ public class TripServlet extends HttpServlet {
                     if (changed) tripDAO.markModified(tripId, userId);
                 }
                 
-                auditDAO.log(userId, username, "CREATE_INCOME", "TRIP", tripId, null);
+                String details = (before == null) ? "Income recorded" : DiffUtil.diff(before, saved, INCOME_DIFF_LABELS);
+                auditDAO.log(userId, username, "CREATE_INCOME", "TRIP", tripId, details);
                 ResponseUtil.created(res, saved);
                 return;
             }
@@ -165,7 +213,8 @@ public class TripServlet extends HttpServlet {
                     if (changed) tripDAO.markModified(tripId, userId);
                 }
 
-                auditDAO.log(userId, username, "CREATE_EXPENSES", "TRIP", tripId, null);
+                String details = (before == null) ? "Expenses recorded" : DiffUtil.diff(before, saved, EXPENSES_DIFF_LABELS);
+                auditDAO.log(userId, username, "CREATE_EXPENSES", "TRIP", tripId, details);
                 ResponseUtil.created(res, saved);
                 return;
             }
@@ -228,7 +277,14 @@ public class TripServlet extends HttpServlet {
 
             boolean updated = tripDAO.updateArrival(id, arrivalTime, arrivalDate);
             if (updated) {
-                auditDAO.log(userId, username, "UPDATE_ARRIVAL", "TRIP", id, null);
+                Map<String, Object> arrivalBefore = new LinkedHashMap<>();
+                arrivalBefore.put("arrivalTime", normTime((String) trip.get("arrivalTime")));
+                arrivalBefore.put("arrivalDate", trip.get("arrivalDate"));
+                Map<String, Object> arrivalAfter = new LinkedHashMap<>();
+                arrivalAfter.put("arrivalTime", normTime(arrivalTime));
+                arrivalAfter.put("arrivalDate", arrivalDate);
+                auditDAO.log(userId, username, "UPDATE_ARRIVAL", "TRIP", id,
+                    DiffUtil.diff(arrivalBefore, arrivalAfter, ARRIVAL_DIFF_LABELS));
             }
             ResponseUtil.success(res, Map.of("updated", updated));
 
@@ -295,7 +351,8 @@ public class TripServlet extends HttpServlet {
                 changelogDAO.log(id, editorId, "TRIP_DETAILS",
                     mapper.writeValueAsString(before),
                     mapper.writeValueAsString(after));
-                auditDAO.log(editorId, editorName, "UPDATE_TRIP", "TRIP", id, null);
+                auditDAO.log(editorId, editorName, "UPDATE_TRIP", "TRIP", id,
+                    DiffUtil.diff(before, after, TRIP_DIFF_LABELS));
             }
 
             ResponseUtil.success(res, Map.of("updated", updated));

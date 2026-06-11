@@ -7,17 +7,18 @@ const API = 'http://localhost:8080/metrolink-backend/api';
 let currentPage = 'trips';
 
 // ── Auth helpers ───────────────────────────────────────────
-const getToken  = () => localStorage.getItem('ml_token');
-const getUser   = () => JSON.parse(localStorage.getItem('ml_user') || 'null');
+// sessionStorage (not localStorage): login does not persist across app/browser restarts.
+const getToken  = () => sessionStorage.getItem('ml_token');
+const getUser   = () => JSON.parse(sessionStorage.getItem('ml_user') || 'null');
 const isAdmin   = () => getUser()?.role === 'ADMIN';
 
 function saveSession(data) {
-  localStorage.setItem('ml_token', data.token);
-  localStorage.setItem('ml_user', JSON.stringify(data));
+  sessionStorage.setItem('ml_token', data.token);
+  sessionStorage.setItem('ml_user', JSON.stringify(data));
 }
 function clearSession() {
-  localStorage.removeItem('ml_token');
-  localStorage.removeItem('ml_user');
+  sessionStorage.removeItem('ml_token');
+  sessionStorage.removeItem('ml_user');
 }
 
 // ── API wrapper ────────────────────────────────────────────
@@ -111,6 +112,12 @@ function confirmModal(title, message, confirmText = 'Confirm', confirmClass = 'b
 // ── Format helpers ─────────────────────────────────────────
 const peso = v => v == null ? '—' : '₱' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 });
 const dash = v => v == null || v === '' ? '—' : v;
+
+const ESCAPE_HTML_MAP = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
+function escapeHtml(str) {
+  if (str == null) return '';
+  return String(str).replace(/[&<>"']/g, c => ESCAPE_HTML_MAP[c]);
+}
 
 // ── Row count helper ───────────────────────────────────────
 function setRowCount(containerId, count, label = 'record') {
@@ -488,7 +495,7 @@ function renderTripRows(rows, resetPage = true) {
         <button class="btn btn-outline-primary btn-icon me-1" onclick="openIncomeExp(${t.id},'${t.busNumber}','${t.tripDate}')" title="Income & Expenses">
           <i class="fas fa-dollar-sign"></i>
         </button>
-        <button class="btn btn-outline-success btn-icon me-1" onclick="openArrivalModal(${t.id},'${t.arrivalTime||''}','${t.arrivalDate||''}','${t.tripDate}','${t.dispatchTime||''}')" title="Set Arrival Time">
+        <button class="btn btn-outline-success btn-icon me-1" onclick="openArrivalModal(${t.id},'${t.arrivalTime||''}','${t.arrivalDate||''}','${t.tripDate}')" title="Set Arrival Time">
           <i class="fas fa-clock"></i>
         </button>
         ${isAdmin() ? `<button class="btn btn-outline-secondary btn-icon" onclick="openEditTrip(${t.id})" title="Edit Trip"><i class="fas fa-edit"></i></button>` : ''}
@@ -938,12 +945,11 @@ function getArrivalModal() {
         <div class="modal-body">
           <input type="hidden" id="arrivalTripId">
           <input type="hidden" id="arrivalTripDate">
-          <input type="hidden" id="arrivalDispatchTime">
           <label class="form-label fw-semibold">Arrival Time</label>
           <input type="time" id="arrivalTimeInput" class="form-control mb-2" oninput="suggestArrivalDate()">
           <label class="form-label fw-semibold">Arrival Date</label>
           <input type="date" id="arrivalDateInput" class="form-control">
-          <div class="form-text text-muted">Leave time blank to clear the arrival record. Date defaults based on dispatch time but can be changed.</div>
+          <div class="form-text text-muted">Leave time blank to clear the arrival record. Date defaults to the trip date — change it for overnight trips.</div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -956,13 +962,6 @@ function getArrivalModal() {
   </div>`;
 }
 
-// Heuristic default: arrived same day as the trip unless arrival time is earlier
-// than dispatch time (i.e. the bus crossed midnight), in which case it's +1 day.
-function guessArrivalDate(tripDate, dispatchTime, arrivalTime) {
-  if (!arrivalTime) return tripDate;
-  return (arrivalTime >= dispatchTime) ? tripDate : addDays(tripDate, 1);
-}
-
 function addDays(dateStr, n) {
   const [y, m, d] = dateStr.split('-').map(Number);
   const dt = new Date(Date.UTC(y, m - 1, d));
@@ -973,17 +972,15 @@ function addDays(dateStr, n) {
 function suggestArrivalDate() {
   const time = document.getElementById('arrivalTimeInput').value;
   const tripDate = document.getElementById('arrivalTripDate').value;
-  const dispatch = document.getElementById('arrivalDispatchTime').value;
-  document.getElementById('arrivalDateInput').value = time ? guessArrivalDate(tripDate, dispatch, time + ':00') : '';
+  document.getElementById('arrivalDateInput').value = time ? tripDate : '';
 }
 
-function openArrivalModal(tripId, currentArrival, currentArrivalDate, tripDate, dispatchTime) {
+function openArrivalModal(tripId, currentArrival, currentArrivalDate, tripDate) {
   document.getElementById('arrivalTripId').value = tripId;
   document.getElementById('arrivalTripDate').value = tripDate;
-  document.getElementById('arrivalDispatchTime').value = dispatchTime;
   document.getElementById('arrivalTimeInput').value = currentArrival ? currentArrival.substring(0, 5) : '';
   document.getElementById('arrivalDateInput').value = currentArrivalDate ||
-    (currentArrival ? guessArrivalDate(tripDate, dispatchTime, currentArrival) : '');
+    (currentArrival ? tripDate : '');
   new bootstrap.Modal(document.getElementById('arrivalModal')).show();
 }
 
@@ -1230,6 +1227,16 @@ async function toggleEmployee(id, active) {
 // ══════════════════════════════════════════════════════════
 // BUSES
 // ══════════════════════════════════════════════════════════
+function expiryCell(dateStr) {
+  if (!dateStr) return '—';
+  const today = new Date().toISOString().split('T')[0];
+  const in30 = addDays(today, 30);
+  let badge = '';
+  if (dateStr < today) badge = '<span class="badge bg-danger ms-1">Expired</span>';
+  else if (dateStr <= in30) badge = '<span class="badge bg-warning text-dark ms-1">Expiring Soon</span>';
+  return dateStr + badge;
+}
+
 async function renderBuses() {
   shell('buses', `
     <div class="page-header">
@@ -1240,9 +1247,10 @@ async function renderBuses() {
     <div class="content-card">
       <div class="table-responsive">
         <table class="table table-hover mb-0">
-          <thead><tr><th>Bus Number</th><th>Plate No.</th><th>Model</th><th>Status</th>
+          <thead><tr><th>Bus Number</th><th>Plate No.</th><th>Model</th>
+            <th>Franchise (CPC) Expiry</th><th>LTO Reg. Expiry</th><th>Insurance Expiry</th><th>Status</th>
             ${isAdmin() ? '<th>Actions</th>' : ''}</tr></thead>
-          <tbody id="busBody"><tr><td colspan="5" class="table-empty">
+          <tbody id="busBody"><tr><td colspan="8" class="table-empty">
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
         </table>
       </div>
@@ -1264,7 +1272,7 @@ function renderBusRows(rows, resetPage = true) {
   if (!tbody) return;
   if (resetPage) _busPage = 1;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="table-empty"><i class="fas fa-bus"></i>No buses found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="8" class="table-empty"><i class="fas fa-bus"></i>No buses found</td></tr>`;
     document.getElementById('busPager').innerHTML = '';
     return;
   }
@@ -1274,6 +1282,9 @@ function renderBusRows(rows, resetPage = true) {
       <td><strong>${b.busNumber}</strong></td>
       <td>${b.plateNo}</td>
       <td>${dash(b.model)}</td>
+      <td>${expiryCell(b.franchiseExpiry)}</td>
+      <td>${expiryCell(b.registrationExpiry)}</td>
+      <td>${expiryCell(b.insuranceExpiry)}</td>
       <td><span class="status-badge ${{ACTIVE:'status-active',INACTIVE:'status-inactive',MAINTENANCE:'status-maintenance'}[b.status]||'status-inactive'}">${{ACTIVE:'Active',INACTIVE:'Inactive',MAINTENANCE:'Under Maintenance'}[b.status]||b.status}</span></td>
       ${isAdmin() ? `<td class="d-flex gap-1 flex-wrap">
         <button class="btn btn-outline-primary btn-icon" onclick="openEditBus(${b.id})" title="Edit"><i class="fas fa-edit"></i></button>
@@ -1314,6 +1325,27 @@ function getBusModal() {
               <label class="form-label">Model</label>
               <input type="text" id="busModel" class="form-control" placeholder="e.g. Hino RK8">
             </div>
+            <div class="col-12"><hr class="my-1"><div class="text-muted small fw-bold">Compliance Documents</div></div>
+            <div class="col-md-6">
+              <label class="form-label">Franchise (CPC) No.</label>
+              <input type="text" id="busFranchiseNo" class="form-control" placeholder="e.g. CPC-2023-0145">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Franchise (CPC) Expiry</label>
+              <input type="date" id="busFranchiseExpiry" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">LTO Registration (OR/CR) Expiry</label>
+              <input type="date" id="busRegExpiry" class="form-control">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">CTPL Insurance Policy No.</label>
+              <input type="text" id="busInsuranceNo" class="form-control" placeholder="e.g. CTPL-88210456">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label">CTPL Insurance Expiry</label>
+              <input type="date" id="busInsuranceExpiry" class="form-control">
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -1328,7 +1360,8 @@ function getBusModal() {
 function openAddBus() {
   document.getElementById('busModalTitle').textContent = 'Add Bus';
   document.getElementById('busId').value = '';
-  ['busNum','busPlate','busModel'].forEach(id => document.getElementById(id).value = '');
+  ['busNum','busPlate','busModel','busFranchiseNo','busFranchiseExpiry','busRegExpiry','busInsuranceNo','busInsuranceExpiry']
+    .forEach(id => document.getElementById(id).value = '');
   new bootstrap.Modal(document.getElementById('busModal')).show();
 }
 
@@ -1340,6 +1373,11 @@ function openEditBus(id) {
   document.getElementById('busNum').value = bus.busNumber;
   document.getElementById('busPlate').value = bus.plateNo;
   document.getElementById('busModel').value = bus.model || '';
+  document.getElementById('busFranchiseNo').value = bus.franchiseNo || '';
+  document.getElementById('busFranchiseExpiry').value = bus.franchiseExpiry || '';
+  document.getElementById('busRegExpiry').value = bus.registrationExpiry || '';
+  document.getElementById('busInsuranceNo').value = bus.insuranceNo || '';
+  document.getElementById('busInsuranceExpiry').value = bus.insuranceExpiry || '';
   new bootstrap.Modal(document.getElementById('busModal')).show();
 }
 
@@ -1348,7 +1386,12 @@ async function saveBus() {
   const body = {
     busNumber: document.getElementById('busNum').value.trim(),
     plateNo:   document.getElementById('busPlate').value.trim(),
-    model:     document.getElementById('busModel').value.trim()
+    model:     document.getElementById('busModel').value.trim(),
+    franchiseNo:        document.getElementById('busFranchiseNo').value.trim(),
+    franchiseExpiry:    document.getElementById('busFranchiseExpiry').value,
+    registrationExpiry: document.getElementById('busRegExpiry').value,
+    insuranceNo:        document.getElementById('busInsuranceNo').value.trim(),
+    insuranceExpiry:    document.getElementById('busInsuranceExpiry').value
   };
   if (!body.busNumber || !body.plateNo) { toast('Bus number and plate are required', 'warning'); return; }
   if (id) {
@@ -1507,13 +1550,28 @@ function renderReportRows() {
       <div class="content-card">
         <div class="table-responsive">
           <table class="table table-hover mb-0">
-            <thead><tr><th>Date</th><th>Trip ID</th><th>Changed By</th><th>Type</th><th>Changed At</th></tr></thead>
-            <tbody>${!rows.length ? `<tr><td colspan="5" class="table-empty">No edits in this period</td></tr>` :
-              pageRows.map(r => `<tr>
-                <td>${r.tripDate}</td><td>#${r.tripId}</td><td>${r.changedByName}</td>
-                <td><span class="status-badge status-modified">${r.changeType}</span></td>
-                <td>${r.changedAt ? new Date(r.changedAt).toLocaleString('en-PH') : '—'}</td>
-              </tr>`).join('')}
+            <thead><tr><th>Date</th><th>Trip ID</th><th>Changed By</th><th>Type</th><th>Changed At</th><th>Details</th></tr></thead>
+            <tbody>${!rows.length ? `<tr><td colspan="6" class="table-empty">No edits in this period</td></tr>` :
+              pageRows.map((r, i) => {
+                const diffRows = changelogDiffRows(r);
+                const mainRow = `<tr>
+                  <td>${r.tripDate}</td><td>#${r.tripId}</td><td>${escapeHtml(r.changedByName)}</td>
+                  <td><span class="status-badge status-modified">${r.changeType}</span></td>
+                  <td>${r.changedAt ? new Date(r.changedAt).toLocaleString('en-PH') : '—'}</td>
+                  <td>${diffRows.length
+                    ? `<button type="button" class="btn btn-sm btn-outline-secondary" onclick="toggleChangelogDiff(this, ${i})"><i class="fas fa-eye"></i> View</button>`
+                    : '—'}</td>
+                </tr>`;
+                const diffRow = diffRows.length ? `<tr id="changelogDiff${i}" style="display:none">
+                  <td colspan="6">
+                    <table class="table table-sm mb-0">
+                      <thead><tr><th>Field</th><th>Before</th><th>After</th></tr></thead>
+                      <tbody>${diffRows.map(d => `<tr><td>${d.label}</td><td>${escapeHtml(d.before)}</td><td>${escapeHtml(d.after)}</td></tr>`).join('')}</tbody>
+                    </table>
+                  </td>
+                </tr>` : '';
+                return mainRow + diffRow;
+              }).join('')}
             </tbody>
           </table>
         </div>
@@ -1527,6 +1585,55 @@ function renderReportRows() {
 function changeReportPage(p) {
   _reportPage = p;
   renderReportRows();
+}
+
+// ── Trip changelog before/after diff ────────────────────────
+const CHANGELOG_FIELD_LABELS = {
+  tripDate: 'Trip Date',
+  busNumber: 'Bus',
+  driverName: 'Driver',
+  conductorName: 'Conductor',
+  dispatchTime: 'Dispatch Time',
+  arrivalTime: 'Arrival Time',
+  arrivalDate: 'Arrival Date',
+  tripCount: 'Trip Count',
+  remarks: 'Remarks',
+};
+
+function changelogValueDisplay(v) {
+  if (v === null || v === undefined || v === '') return '—';
+  if (typeof v === 'string' && /^\d{2}:\d{2}:\d{2}$/.test(v)) return v.substring(0, 5);
+  return String(v);
+}
+
+function changelogDiffRows(r) {
+  if (r.changeType !== 'TRIP_DETAILS' || !r.oldValue || !r.newValue) return [];
+  let oldObj, newObj;
+  try {
+    oldObj = typeof r.oldValue === 'string' ? JSON.parse(r.oldValue) : r.oldValue;
+    newObj = typeof r.newValue === 'string' ? JSON.parse(r.newValue) : r.newValue;
+  } catch {
+    return [];
+  }
+  const out = [];
+  for (const [key, label] of Object.entries(CHANGELOG_FIELD_LABELS)) {
+    const before = changelogValueDisplay(oldObj[key]);
+    const after = changelogValueDisplay(newObj[key]);
+    if (before !== after) out.push({ label, before, after });
+  }
+  return out;
+}
+
+function toggleChangelogDiff(btn, i) {
+  const row = document.getElementById(`changelogDiff${i}`);
+  if (!row) return;
+  if (row.style.display === 'none') {
+    row.style.display = '';
+    btn.innerHTML = '<i class="fas fa-eye-slash"></i> Hide';
+  } else {
+    row.style.display = 'none';
+    btn.innerHTML = '<i class="fas fa-eye"></i> View';
+  }
 }
 
 // ══════════════════════════════════════════════════════════
@@ -2060,7 +2167,7 @@ function renderAuditRows() {
             <td>${actionBadge(r.action)}</td>
             <td>${r.entity || '—'}</td>
             <td>${r.entityId != null ? r.entityId : '—'}</td>
-            <td>${r.details || '—'}</td>
+            <td>${r.details ? escapeHtml(r.details) : '—'}</td>
           </tr>`).join('')}
         </tbody>
       </table>
@@ -2127,6 +2234,28 @@ async function renderDashboard() {
       </div>
     </div>
 
+    <!-- Row 1.5: Fleet Availability Today -->
+    <div class="row g-3 mb-3">
+      <div class="col-md-4">
+        <div class="content-card p-3">
+          <div class="dash-section-label">Available Buses Today <span class="badge bg-secondary ms-1" id="dashAvailBusCount">—</span></div>
+          <div id="dashAvailBuses" class="dash-avail-list"><div class="text-muted small">Loading…</div></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="content-card p-3">
+          <div class="dash-section-label">Available Drivers Today <span class="badge bg-secondary ms-1" id="dashAvailDriverCount">—</span></div>
+          <div id="dashAvailDrivers" class="dash-avail-list"><div class="text-muted small">Loading…</div></div>
+        </div>
+      </div>
+      <div class="col-md-4">
+        <div class="content-card p-3">
+          <div class="dash-section-label">Available Conductors Today <span class="badge bg-secondary ms-1" id="dashAvailConductorCount">—</span></div>
+          <div id="dashAvailConductors" class="dash-avail-list"><div class="text-muted small">Loading…</div></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Row 2: Trip Volume by Day of Week + Payroll Breakdown -->
     <div class="row g-3 mb-3">
       <div class="col-md-6">
@@ -2154,13 +2283,14 @@ async function renderDashboard() {
   _dashChart = _dashChart2 = _dashChart3 = null;
 
   try {
-    const [summary, todayTrips, tripReport14, tripReport28, payrollSummary, auditLog] = await Promise.all([
+    const [summary, todayTrips, tripReport14, tripReport28, payrollSummary, auditLog, availableStaff] = await Promise.all([
       api(`/reports/summary?from=${mtdStart}&to=${today}`),
       api(`/trips/date?date=${today}`),
       api(`/reports/trips?from=${fourteenAgo}&to=${today}`),
       api(`/reports/trips?from=${fourWeekAgo}&to=${today}`),
       isAdmin() ? api(`/payroll/summary?from=${mtdStart}&to=${today}`) : Promise.resolve(null),
-      isAdmin() ? api(`/audit?from=${sevenAgo}&to=${today}`) : Promise.resolve([])
+      isAdmin() ? api(`/audit?from=${sevenAgo}&to=${today}`) : Promise.resolve([]),
+      api(`/trips/available-staff?date=${today}`)
     ]);
 
     // ── Stat cards ──
@@ -2330,6 +2460,26 @@ async function renderDashboard() {
             <span class="text-muted">${t.dispatchTime ? t.dispatchTime.substring(0,5) : '—'}</span>
           </div>`).join('');
     }
+
+    // ── Fleet availability today ──
+    const availBuses      = availableStaff?.buses      || [];
+    const availDrivers    = availableStaff?.drivers    || [];
+    const availConductors = availableStaff?.conductors || [];
+
+    document.getElementById('dashAvailBusCount').textContent = availBuses.length;
+    document.getElementById('dashAvailBuses').innerHTML = availBuses.length
+      ? availBuses.map(b => `<div class="dash-trip-row"><span><strong>${b.busNumber}</strong> &nbsp;${b.plateNo}</span></div>`).join('')
+      : '<div class="text-muted small">No buses available today.</div>';
+
+    document.getElementById('dashAvailDriverCount').textContent = availDrivers.length;
+    document.getElementById('dashAvailDrivers').innerHTML = availDrivers.length
+      ? availDrivers.map(d => `<div class="dash-trip-row"><span>${d.fullName}</span></div>`).join('')
+      : '<div class="text-muted small">No drivers available today.</div>';
+
+    document.getElementById('dashAvailConductorCount').textContent = availConductors.length;
+    document.getElementById('dashAvailConductors').innerHTML = availConductors.length
+      ? availConductors.map(c => `<div class="dash-trip-row"><span>${c.fullName}</span></div>`).join('')
+      : '<div class="text-muted small">No conductors available today.</div>';
 
     // ── Recent activity (admin only) ──
     const actEl = document.getElementById('dashActivity');

@@ -3,6 +3,7 @@ package com.metrolink.controller;
 import com.metrolink.dao.AuditDAO;
 import com.metrolink.dao.UserDAO;
 import com.metrolink.model.User;
+import com.metrolink.util.DiffUtil;
 import com.metrolink.util.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -34,6 +35,15 @@ public class UserServlet extends HttpServlet {
 
     private final UserDAO  userDAO  = new UserDAO();
     private final AuditDAO auditDAO = new AuditDAO();
+
+    private static final Map<String, String> USER_DIFF_LABELS = new LinkedHashMap<>();
+    static {
+        USER_DIFF_LABELS.put("fullName", "Full Name");
+        USER_DIFF_LABELS.put("birthdate", "Birthdate");
+        USER_DIFF_LABELS.put("address", "Address");
+        USER_DIFF_LABELS.put("email", "Email");
+        USER_DIFF_LABELS.put("role", "Role");
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
@@ -111,10 +121,13 @@ public class UserServlet extends HttpServlet {
             String email        = (String) body.get("email");
             String role         = (String) body.get("role");
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
+            User before = userDAO.findById(id);
             userDAO.update(id, fullName, birthdate, address, email, role);
+            User after = userDAO.findById(id);
             int requesterId = (int) req.getAttribute("userId");
             String requesterName = (String) req.getAttribute("username");
-            auditDAO.log(requesterId, requesterName, "UPDATE_USER", "USER", id, null);
+            auditDAO.log(requesterId, requesterName, "UPDATE_USER", "USER", id,
+                DiffUtil.diff(safeUser(before), safeUser(after), USER_DIFF_LABELS));
             ResponseUtil.success(res, Map.of("updated", true));
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -149,8 +162,10 @@ public class UserServlet extends HttpServlet {
                     return;
                 }
                 boolean isActive = (Boolean) isActiveValue;
+                User before = userDAO.findById(id);
                 userDAO.setActive(id, isActive);
-                auditDAO.log(requesterId, requesterName, "CHANGE_USER_STATUS", "USER", id, "isActive=" + isActive);
+                String details = "Active: " + DiffUtil.display(before != null ? before.isActive() : null) + " -> " + isActive;
+                auditDAO.log(requesterId, requesterName, "CHANGE_USER_STATUS", "USER", id, details);
                 ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
 
             } else if (pathInfo != null && pathInfo.endsWith("/password")) {
@@ -177,6 +192,7 @@ public class UserServlet extends HttpServlet {
     }
 
     private Map<String, Object> safeUser(User u) {
+        if (u == null) return Map.of();
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("id",        u.getId());
         m.put("username",  u.getUsername());

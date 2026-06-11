@@ -22,11 +22,12 @@ DELETE FROM trips;
 -- ============================================================
 -- USERS — staff accounts (admin already seeded by schema.sql)
 -- ============================================================
-INSERT INTO users (username, password, full_name, role)
+-- jdelacruz is deactivated June 11 (demonstrates the Staff Accounts status toggle)
+INSERT INTO users (username, password, full_name, role, is_active)
 VALUES
-  ('jdelacruz', '$2a$12$xRLFI0.LJaIPcHcFhHGUWeKdJLLxv3lmblWh7B1z0EeSGBnqHHyU2', 'Dela Cruz, Juan R.', 'STAFF'),
-  ('msantos',   '$2a$12$xRLFI0.LJaIPcHcFhHGUWeKdJLLxv3lmblWh7B1z0EeSGBnqHHyU2', 'Santos, Maria T.',   'STAFF')
-ON DUPLICATE KEY UPDATE username = username;
+  ('jdelacruz', '$2a$12$xRLFI0.LJaIPcHcFhHGUWeKdJLLxv3lmblWh7B1z0EeSGBnqHHyU2', 'Dela Cruz, Juan R.', 'STAFF', FALSE),
+  ('msantos',   '$2a$12$xRLFI0.LJaIPcHcFhHGUWeKdJLLxv3lmblWh7B1z0EeSGBnqHHyU2', 'Santos, Maria T.',   'STAFF', TRUE)
+ON DUPLICATE KEY UPDATE is_active = VALUES(is_active);
 -- Note: password hash = bcrypt('admin123', 12) — demo password for all accounts
 
 -- ============================================================
@@ -48,16 +49,22 @@ ON DUPLICATE KEY UPDATE
   address = VALUES(address), is_active = VALUES(is_active);
 
 -- ============================================================
--- BUSES — fleet (0003 and 0005 in maintenance to demo status mix)
+-- BUSES — fleet (0001 pulled from service June 10 pending insurance
+-- renewal; 0003 running despite an expired LTO registration; 0005
+-- in scheduled maintenance — demo status mix)
 -- ============================================================
-INSERT INTO buses (bus_number, plate_no, model, status, is_active) VALUES
-  ('0001', 'BAC-1001', 'Hino RN2PSST',       'ACTIVE',       TRUE),
-  ('0002', 'BAC-1002', 'Hino RN2PSST',       'ACTIVE',       TRUE),
-  ('0003', 'BAC-1003', 'King Long XMQ6900',  'MAINTENANCE',  FALSE),
-  ('0004', 'BAC-1004', 'King Long XMQ6900',  'ACTIVE',       TRUE),
-  ('0005', 'BAC-1005', 'Hino RN2PSST',       'MAINTENANCE',  FALSE)
+INSERT INTO buses (bus_number, plate_no, model, status, is_active,
+                    franchise_no, franchise_expiry, registration_expiry, insurance_no, insurance_expiry) VALUES
+  ('0001', 'BAC-1001', 'Hino RN2PSST',       'INACTIVE',     FALSE, 'CPC-2023-0145', '2027-03-15', '2026-08-20', 'CTPL-88210456', '2026-06-25'),
+  ('0002', 'BAC-1002', 'Hino RN2PSST',       'ACTIVE',       TRUE,  'CPC-2023-0146', '2026-05-30', '2027-01-10', 'CTPL-88210457', '2027-01-10'),
+  ('0003', 'BAC-1003', 'King Long XMQ6900',  'ACTIVE',       TRUE,  'CPC-2022-0312', '2026-11-01', '2026-05-01', 'CTPL-88210458', '2026-09-30'),
+  ('0004', 'BAC-1004', 'King Long XMQ6900',  'ACTIVE',       TRUE,  'CPC-2023-0147', '2027-07-01', '2027-02-15', 'CTPL-88210459', '2027-02-15'),
+  ('0005', 'BAC-1005', 'Hino RN2PSST',       'MAINTENANCE',  FALSE, 'CPC-2022-0313', '2026-12-12', '2026-12-12', 'CTPL-88210460', '2026-12-12')
 ON DUPLICATE KEY UPDATE
-  model = VALUES(model), status = VALUES(status), is_active = VALUES(is_active);
+  model = VALUES(model), status = VALUES(status), is_active = VALUES(is_active),
+  franchise_no = VALUES(franchise_no), franchise_expiry = VALUES(franchise_expiry),
+  registration_expiry = VALUES(registration_expiry),
+  insurance_no = VALUES(insurance_no), insurance_expiry = VALUES(insurance_expiry);
 
 -- ============================================================
 -- CLEAN UP — remove anomalous zero-income duplicate trip
@@ -68,9 +75,11 @@ WHERE trip_date = '2026-06-03' AND bus_id = (SELECT id FROM buses WHERE bus_numb
   AND driver_id = (SELECT id FROM employees WHERE employee_code = 'DRV-003');
 
 -- ============================================================
--- TRIPS — May 28 – June 9, 2026
+-- TRIPS — May 28 – June 11, 2026
 -- Bus pairings: 0001→DRV-001/CON-001, 0002→DRV-002/CON-002, 0004→DRV-003/CON-003
--- Bus 0003 used in late-May data to show MAINTENANCE backstory
+-- Bus 0003 used in late-May data to show MAINTENANCE backstory.
+-- From June 10, Bus 0001 is pulled from service (insurance renewal
+-- pending) and its crew (DRV-001/CON-001) is reassigned to Bus 0003.
 -- ============================================================
 INSERT INTO trips (trip_date, bus_id, driver_id, conductor_id, dispatch_time, arrival_time, trip_count, remarks, is_modified, modified_by, modified_at, created_by)
 SELECT * FROM (SELECT
@@ -114,7 +123,14 @@ SELECT '2026-06-08', b.id, drv.id, con.id, '05:30:00', '22:00:00', 8,  'Expenses
 -- June 9 (today)
 SELECT '2026-06-09', b.id, drv.id, con.id, '05:30:00', '21:45:00', 7,  NULL,                                     FALSE, NULL, NULL,            2 FROM buses b, employees drv, employees con WHERE b.bus_number='0001' AND drv.employee_code='DRV-001' AND con.employee_code='CON-001' UNION ALL
 SELECT '2026-06-09', b.id, drv.id, con.id, '05:30:00', '21:30:00', 6,  NULL,                                     FALSE, NULL, NULL,            2 FROM buses b, employees drv, employees con WHERE b.bus_number='0002' AND drv.employee_code='DRV-002' AND con.employee_code='CON-002' UNION ALL
-SELECT '2026-06-09', b.id, drv.id, con.id, '05:30:00', '21:45:00', 7,  NULL,                                     FALSE, NULL, NULL,            3 FROM buses b, employees drv, employees con WHERE b.bus_number='0004' AND drv.employee_code='DRV-003' AND con.employee_code='CON-003'
+SELECT '2026-06-09', b.id, drv.id, con.id, '05:30:00', '21:45:00', 7,  NULL,                                     FALSE, NULL, NULL,            3 FROM buses b, employees drv, employees con WHERE b.bus_number='0004' AND drv.employee_code='DRV-003' AND con.employee_code='CON-003' UNION ALL
+-- June 10 (Bus 0001 out of service; its crew reassigned to Bus 0003)
+SELECT '2026-06-10', b.id, drv.id, con.id, '05:30:00', '21:45:00', 7,  NULL,                                     FALSE, NULL, NULL,            2 FROM buses b, employees drv, employees con WHERE b.bus_number='0002' AND drv.employee_code='DRV-002' AND con.employee_code='CON-002' UNION ALL
+SELECT '2026-06-10', b.id, drv.id, con.id, '05:30:00', '22:15:00', 7,  'Trip count corrected after dispatcher recount', TRUE, u.id, '2026-06-10 20:30:00', 2 FROM buses b, employees drv, employees con, users u WHERE b.bus_number='0003' AND drv.employee_code='DRV-001' AND con.employee_code='CON-001' AND u.username='admin' UNION ALL
+SELECT '2026-06-10', b.id, drv.id, con.id, '05:30:00', '22:15:00', 8,  NULL,                                     FALSE, NULL, NULL,            3 FROM buses b, employees drv, employees con WHERE b.bus_number='0004' AND drv.employee_code='DRV-003' AND con.employee_code='CON-003' UNION ALL
+-- June 11 (today)
+SELECT '2026-06-11', b.id, drv.id, con.id, '05:30:00', '11:30:00', 3,  'Low income — early return for mechanical inspection', FALSE, NULL, NULL, 3 FROM buses b, employees drv, employees con WHERE b.bus_number='0002' AND drv.employee_code='DRV-002' AND con.employee_code='CON-002' UNION ALL
+SELECT '2026-06-11', b.id, drv.id, con.id, '05:30:00', NULL,        4,  NULL,                                     FALSE, NULL, NULL,            3 FROM buses b, employees drv, employees con WHERE b.bus_number='0003' AND drv.employee_code='DRV-001' AND con.employee_code='CON-001'
 ) AS src
 ON DUPLICATE KEY UPDATE trip_count = VALUES(trip_count);
 
@@ -153,7 +169,9 @@ JOIN (VALUES
   ROW('2026-06-06','0001',13500), ROW('2026-06-06','0002',11200),
   ROW('2026-06-07','0002', 9500), ROW('2026-06-07','0004',12500),
   ROW('2026-06-08','0001',17000), ROW('2026-06-08','0002',16200), ROW('2026-06-08','0004',16800),
-  ROW('2026-06-09','0001',15500), ROW('2026-06-09','0002',14000), ROW('2026-06-09','0004',15800)
+  ROW('2026-06-09','0001',15500), ROW('2026-06-09','0002',14000), ROW('2026-06-09','0004',15800),
+  ROW('2026-06-10','0002',15200), ROW('2026-06-10','0003',16400), ROW('2026-06-10','0004',17500),
+  ROW('2026-06-11','0002', 6500), ROW('2026-06-11','0003', 9200)
 ) AS g(trip_date, bus_num, gross) ON t.trip_date = g.trip_date AND b.bus_number = g.bus_num
 ON DUPLICATE KEY UPDATE
   gross_income      = VALUES(gross_income),
@@ -282,10 +300,10 @@ ON DUPLICATE KEY UPDATE status = VALUES(status), paid_at = VALUES(paid_at);
 
 -- ============================================================
 -- PAYROLL RECORDS — June 1-15 current period
--- June 1-7: PAID  |  June 8-9: PENDING  |  Fixed staff: PENDING
+-- June 1-10: PAID  |  June 11 (today): PENDING  |  Fixed staff: PENDING
 -- ============================================================
 
--- Drivers (June 1-7, PAID)
+-- Drivers (June 1-10, PAID)
 INSERT INTO payroll_records (period_start, period_end, trip_date, employee_id, gross_pay, deductions, net_pay, trip_count, status, paid_at, paid_by)
 SELECT '2026-06-01', '2026-06-15', t.trip_date, t.driver_id,
   1225.00 + CASE WHEN t.trip_count >= 8 THEN 400.00 WHEN t.trip_count >= 7 THEN 200.00 ELSE 0.00 END,
@@ -294,20 +312,20 @@ SELECT '2026-06-01', '2026-06-15', t.trip_date, t.driver_id,
   1, 'PAID', CONCAT(t.trip_date + INTERVAL 1 DAY, ' 09:00:00'),
   (SELECT id FROM users WHERE username = 'admin')
 FROM trips t
-WHERE t.trip_date BETWEEN '2026-06-01' AND '2026-06-07'
+WHERE t.trip_date BETWEEN '2026-06-01' AND '2026-06-10'
 ON DUPLICATE KEY UPDATE status = VALUES(status), paid_at = VALUES(paid_at);
 
--- Conductors (June 1-7, PAID)
+-- Conductors (June 1-10, PAID)
 INSERT INTO payroll_records (period_start, period_end, trip_date, employee_id, gross_pay, deductions, net_pay, trip_count, status, paid_at, paid_by)
 SELECT '2026-06-01', '2026-06-15', t.trip_date, t.conductor_id,
   1225.00, 395.00, 830.00, 1, 'PAID',
   CONCAT(t.trip_date + INTERVAL 1 DAY, ' 09:00:00'),
   (SELECT id FROM users WHERE username = 'admin')
 FROM trips t
-WHERE t.trip_date BETWEEN '2026-06-01' AND '2026-06-07'
+WHERE t.trip_date BETWEEN '2026-06-01' AND '2026-06-10'
 ON DUPLICATE KEY UPDATE status = VALUES(status), paid_at = VALUES(paid_at);
 
--- Drivers (June 8-9, PENDING)
+-- Drivers (June 11, PENDING)
 INSERT INTO payroll_records (period_start, period_end, trip_date, employee_id, gross_pay, deductions, net_pay, trip_count, status, paid_at, paid_by)
 SELECT '2026-06-01', '2026-06-15', t.trip_date, t.driver_id,
   1225.00 + CASE WHEN t.trip_count >= 8 THEN 400.00 WHEN t.trip_count >= 7 THEN 200.00 ELSE 0.00 END,
@@ -315,15 +333,15 @@ SELECT '2026-06-01', '2026-06-15', t.trip_date, t.driver_id,
   1225.00 + CASE WHEN t.trip_count >= 8 THEN 400.00 WHEN t.trip_count >= 7 THEN 200.00 ELSE 0.00 END - 395.00,
   1, 'PENDING', NULL, NULL
 FROM trips t
-WHERE t.trip_date BETWEEN '2026-06-08' AND '2026-06-09'
+WHERE t.trip_date = '2026-06-11'
 ON DUPLICATE KEY UPDATE status = VALUES(status);
 
--- Conductors (June 8-9, PENDING)
+-- Conductors (June 11, PENDING)
 INSERT INTO payroll_records (period_start, period_end, trip_date, employee_id, gross_pay, deductions, net_pay, trip_count, status, paid_at, paid_by)
 SELECT '2026-06-01', '2026-06-15', t.trip_date, t.conductor_id,
   1225.00, 395.00, 830.00, 1, 'PENDING', NULL, NULL
 FROM trips t
-WHERE t.trip_date BETWEEN '2026-06-08' AND '2026-06-09'
+WHERE t.trip_date = '2026-06-11'
 ON DUPLICATE KEY UPDATE status = VALUES(status);
 
 -- Fixed staff — June 1-15 bi-monthly (PENDING)
@@ -376,4 +394,23 @@ INSERT INTO audit_logs (user_id, username, action, entity, entity_id, details, l
   (1, 'admin',    'TRIP_EDITED',      'TRIP',     NULL,'Corrected expenses — Bus 0004, Jun 8','2026-06-08 23:15:00'),
   (2, 'jdelacruz','TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0001, Jun 9',      '2026-06-09 08:06:18'),
   (2, 'jdelacruz','TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0002, Jun 9',      '2026-06-09 08:09:44'),
-  (3, 'msantos',  'TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0004, Jun 9',      '2026-06-09 08:18:30');
+  (3, 'msantos',  'TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0004, Jun 9',      '2026-06-09 08:18:30'),
+  (1, 'admin',    'PAYROLL_PAID',     'PAYROLL',  NULL,'Marked Jun 8 payroll as PAID',        '2026-06-09 09:00:00'),
+  -- June 10 — Bus 0001 pulled from service; its crew reassigned to Bus 0003
+  (1, 'admin',    'LOGIN_SUCCESS',    'USER',     1,  NULL,                                   '2026-06-10 07:45:00'),
+  (2, 'jdelacruz','LOGIN_SUCCESS',    'USER',     2,  NULL,                                   '2026-06-10 08:00:00'),
+  (3, 'msantos',  'LOGIN_SUCCESS',    'USER',     3,  NULL,                                   '2026-06-10 08:15:00'),
+  (2, 'jdelacruz','TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0002, Jun 10',     '2026-06-10 08:08:00'),
+  (2, 'jdelacruz','TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0003, Jun 10',     '2026-06-10 08:11:00'),
+  (3, 'msantos',  'TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0004, Jun 10',     '2026-06-10 08:19:00'),
+  (1, 'admin',    'PAYROLL_PAID',     'PAYROLL',  NULL,'Marked Jun 9 payroll as PAID',        '2026-06-10 09:00:00'),
+  (1, 'admin',    'CHANGE_BUS_STATUS','BUS',      1,  'Status: ACTIVE -> INACTIVE',           '2026-06-10 12:30:00'),
+  (1, 'admin',    'TRIP_EDITED',      'TRIP',     NULL,'Trip count corrected after dispatcher recount — Bus 0003, Jun 10', '2026-06-10 20:30:00'),
+  -- June 11 (today) — jdelacruz's account is deactivated; msantos covers
+  (1, 'admin',    'CHANGE_USER_STATUS','USER',    2,  'Active: true -> false',                '2026-06-11 07:30:00'),
+  (1, 'admin',    'LOGIN_SUCCESS',    'USER',     1,  NULL,                                   '2026-06-11 07:25:00'),
+  (3, 'msantos',  'LOGIN_SUCCESS',    'USER',     3,  NULL,                                   '2026-06-11 08:00:00'),
+  (3, 'msantos',  'TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0002, Jun 11',     '2026-06-11 08:08:00'),
+  (3, 'msantos',  'TRIP_CREATED',     'TRIP',     NULL,'Trip recorded: Bus 0003, Jun 11',     '2026-06-11 08:12:00'),
+  (1, 'admin',    'PAYROLL_PAID',     'PAYROLL',  NULL,'Marked Jun 10 payroll as PAID',       '2026-06-11 09:00:00'),
+  (3, 'msantos',  'UPDATE_ARRIVAL',   'TRIP',     NULL,'Arrival Time: (none) -> 11:30; Arrival Date: (none) -> 2026-06-11', '2026-06-11 11:35:00');

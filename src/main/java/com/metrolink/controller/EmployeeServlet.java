@@ -3,6 +3,7 @@ package com.metrolink.controller;
 import com.metrolink.dao.AuditDAO;
 import com.metrolink.dao.EmployeeDAO;
 import com.metrolink.model.Employee;
+import com.metrolink.util.DiffUtil;
 import com.metrolink.util.ResponseUtil;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.annotation.WebServlet;
@@ -30,6 +31,28 @@ public class EmployeeServlet extends HttpServlet {
 
     private final EmployeeDAO dao      = new EmployeeDAO();
     private final AuditDAO    auditDAO = new AuditDAO();
+
+    private static final Map<String, String> EMPLOYEE_DIFF_LABELS = new LinkedHashMap<>();
+    static {
+        EMPLOYEE_DIFF_LABELS.put("fullName", "Full Name");
+        EMPLOYEE_DIFF_LABELS.put("birthdate", "Birthdate");
+        EMPLOYEE_DIFF_LABELS.put("address", "Address");
+        EMPLOYEE_DIFF_LABELS.put("position", "Position");
+        EMPLOYEE_DIFF_LABELS.put("dailyRate", "Daily Rate");
+        EMPLOYEE_DIFF_LABELS.put("biMonthlyRate", "Bi-Monthly Rate");
+    }
+
+    private Map<String, Object> employeeMap(Employee e) {
+        if (e == null) return Map.of();
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("fullName", e.getFullName());
+        m.put("birthdate", e.getBirthdate());
+        m.put("address", e.getAddress());
+        m.put("position", e.getPosition());
+        m.put("dailyRate", e.getDailyRate());
+        m.put("biMonthlyRate", e.getBiMonthlyRate());
+        return m;
+    }
 
     @Override
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
@@ -101,10 +124,13 @@ public class EmployeeServlet extends HttpServlet {
             boolean isDaily = Set.of("DRIVER","CONDUCTOR").contains(position);
             BigDecimal dailyRate     = isDaily ? new BigDecimal(body.getOrDefault("dailyRate",     1225.00).toString()) : null;
             BigDecimal biMonthlyRate = isDaily ? null : new BigDecimal(body.getOrDefault("biMonthlyRate", 0).toString());
+            Employee before = dao.findById(id);
             dao.update(id, fullName, birthdate, address, position, dailyRate, biMonthlyRate);
+            Employee after = dao.findById(id);
             int userId = (int) req.getAttribute("userId");
             String username = (String) req.getAttribute("username");
-            auditDAO.log(userId, username, "UPDATE_EMPLOYEE", "EMPLOYEE", id, null);
+            auditDAO.log(userId, username, "UPDATE_EMPLOYEE", "EMPLOYEE", id,
+                DiffUtil.diff(employeeMap(before), employeeMap(after), EMPLOYEE_DIFF_LABELS));
             ResponseUtil.success(res, Map.of("updated", true));
         } catch (SecurityException e) {
             ResponseUtil.error(res, 403, e.getMessage());
@@ -136,10 +162,12 @@ public class EmployeeServlet extends HttpServlet {
                     return;
                 }
                 boolean isActive = (Boolean) isActiveValue;
+                Employee before = dao.findById(id);
                 dao.setActive(id, isActive);
                 int userId = (int) req.getAttribute("userId");
                 String username = (String) req.getAttribute("username");
-                auditDAO.log(userId, username, "CHANGE_EMPLOYEE_STATUS", "EMPLOYEE", id, "isActive=" + isActive);
+                String details = "Active: " + DiffUtil.display(before != null ? before.isActive() : null) + " -> " + isActive;
+                auditDAO.log(userId, username, "CHANGE_EMPLOYEE_STATUS", "EMPLOYEE", id, details);
                 ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
             }
         } catch (SecurityException e) {

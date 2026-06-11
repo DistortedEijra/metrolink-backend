@@ -21,6 +21,7 @@ AppPublisherURL=https://github.com/DistortedEijra/metrolink-backend
 AppSupportURL=https://github.com/DistortedEijra/metrolink-backend
 DefaultDirName={autopf}\MetrolinkFOMS
 DefaultGroupName={#MyAppName}
+SetupIconFile=icon.ico
 AllowNoIcons=yes
 OutputDir=..\dist
 OutputBaseFilename=Metrolink FOMS Setup

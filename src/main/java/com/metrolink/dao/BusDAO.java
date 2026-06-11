@@ -73,13 +73,21 @@ public class BusDAO {
         return null;
     }
 
-    public Map<String, Object> create(String busNumber, String plateNo, String model) throws SQLException {
-        String sql = "INSERT INTO buses (bus_number, plate_no, model) VALUES (?, ?, ?)";
+    public Map<String, Object> create(String busNumber, String plateNo, String model,
+            String franchiseNo, LocalDate franchiseExpiry, LocalDate registrationExpiry,
+            String insuranceNo, LocalDate insuranceExpiry) throws SQLException {
+        String sql = "INSERT INTO buses (bus_number, plate_no, model, franchise_no, franchise_expiry, " +
+                     "registration_expiry, insurance_no, insurance_expiry) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, busNumber);
             ps.setString(2, plateNo);
             ps.setString(3, model);
+            ps.setString(4, franchiseNo);
+            setNullableDate(ps, 5, franchiseExpiry);
+            setNullableDate(ps, 6, registrationExpiry);
+            ps.setString(7, insuranceNo);
+            setNullableDate(ps, 8, insuranceExpiry);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) return findById(keys.getInt(1));
@@ -88,16 +96,29 @@ public class BusDAO {
         return null;
     }
 
-    public boolean update(int id, String busNumber, String plateNo, String model) throws SQLException {
-        String sql = "UPDATE buses SET bus_number=?, plate_no=?, model=? WHERE id=?";
+    public boolean update(int id, String busNumber, String plateNo, String model,
+            String franchiseNo, LocalDate franchiseExpiry, LocalDate registrationExpiry,
+            String insuranceNo, LocalDate insuranceExpiry) throws SQLException {
+        String sql = "UPDATE buses SET bus_number=?, plate_no=?, model=?, franchise_no=?, franchise_expiry=?, " +
+                     "registration_expiry=?, insurance_no=?, insurance_expiry=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, busNumber);
             ps.setString(2, plateNo);
             ps.setString(3, model);
-            ps.setInt(4, id);
+            ps.setString(4, franchiseNo);
+            setNullableDate(ps, 5, franchiseExpiry);
+            setNullableDate(ps, 6, registrationExpiry);
+            ps.setString(7, insuranceNo);
+            setNullableDate(ps, 8, insuranceExpiry);
+            ps.setInt(9, id);
             return ps.executeUpdate() > 0;
         }
+    }
+
+    private void setNullableDate(PreparedStatement ps, int index, LocalDate date) throws SQLException {
+        if (date != null) ps.setDate(index, java.sql.Date.valueOf(date));
+        else ps.setNull(index, Types.DATE);
     }
 
     public boolean setActive(int id, boolean isActive) throws SQLException {
@@ -123,6 +144,11 @@ public class BusDAO {
         m.put("busNumber", rs.getString("bus_number"));
         m.put("plateNo",   rs.getString("plate_no"));
         m.put("model",     rs.getString("model"));
+        m.put("franchiseNo",        rs.getString("franchise_no"));
+        m.put("franchiseExpiry",    rs.getDate("franchise_expiry") != null ? rs.getDate("franchise_expiry").toLocalDate() : null);
+        m.put("registrationExpiry", rs.getDate("registration_expiry") != null ? rs.getDate("registration_expiry").toLocalDate() : null);
+        m.put("insuranceNo",        rs.getString("insurance_no"));
+        m.put("insuranceExpiry",    rs.getDate("insurance_expiry") != null ? rs.getDate("insurance_expiry").toLocalDate() : null);
         String status = rs.getString("status");
         m.put("status",   status);
         m.put("isActive", "ACTIVE".equals(status));

@@ -39,10 +39,15 @@ CREATE TABLE IF NOT EXISTS employees (
 -- BUSES TABLE (Bus Management module)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS buses (
-    id          INT AUTO_INCREMENT PRIMARY KEY,
-    bus_number  VARCHAR(20)  NOT NULL UNIQUE,
-    plate_no    VARCHAR(20)  NOT NULL UNIQUE,
-    model       VARCHAR(100),
+    id                  INT AUTO_INCREMENT PRIMARY KEY,
+    bus_number          VARCHAR(20)  NOT NULL UNIQUE,
+    plate_no            VARCHAR(20)  NOT NULL UNIQUE,
+    model               VARCHAR(100),
+    franchise_no        VARCHAR(50),  -- LTFRB Certificate of Public Convenience (CPC) number
+    franchise_expiry    DATE,         -- LTFRB franchise/CPC expiry date
+    registration_expiry DATE,         -- LTO registration (OR/CR) expiry date
+    insurance_no        VARCHAR(50),  -- CTPL insurance policy number
+    insurance_expiry    DATE,         -- CTPL insurance expiry date
     status      ENUM('ACTIVE','INACTIVE','MAINTENANCE') NOT NULL DEFAULT 'ACTIVE',
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

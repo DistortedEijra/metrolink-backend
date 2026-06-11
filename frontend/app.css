@@ -595,6 +595,7 @@ body {
   font-size: 0.81rem; display: flex; gap: 0.6rem; align-items: flex-start;
 }
 .dash-activity-row:last-child { border-bottom: none; }
+.dash-avail-list { max-height: 220px; overflow-y: auto; }
 .dash-chart-wrap { position: relative; height: 230px; }
 .dash-chart-wrap.tall { height: 275px; }
 
