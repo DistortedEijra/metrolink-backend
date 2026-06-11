@@ -47,9 +47,10 @@ public class EmployeeDAO {
 
     public Employee create(String employeeCode, String fullName, LocalDate birthdate,
                            String address, String position,
-                           BigDecimal dailyRate, BigDecimal biMonthlyRate) throws SQLException {
-        String sql = "INSERT INTO employees (employee_code, full_name, birthdate, address, position, daily_rate, bi_monthly_rate) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
+                           BigDecimal dailyRate, BigDecimal biMonthlyRate,
+                           String licenseNo, LocalDate licenseExpiry) throws SQLException {
+        String sql = "INSERT INTO employees (employee_code, full_name, birthdate, address, position, daily_rate, bi_monthly_rate, license_no, license_expiry) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, employeeCode);
@@ -59,6 +60,8 @@ public class EmployeeDAO {
             ps.setString(5, position);
             if (dailyRate != null) ps.setBigDecimal(6, dailyRate); else ps.setNull(6, Types.DECIMAL);
             if (biMonthlyRate != null) ps.setBigDecimal(7, biMonthlyRate); else ps.setNull(7, Types.DECIMAL);
+            ps.setString(8, licenseNo);
+            if (licenseExpiry != null) ps.setDate(9, java.sql.Date.valueOf(licenseExpiry)); else ps.setNull(9, Types.DATE);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) return findById(keys.getInt(1));
@@ -69,8 +72,9 @@ public class EmployeeDAO {
 
     public boolean update(int id, String fullName, LocalDate birthdate,
                           String address, String position,
-                          BigDecimal dailyRate, BigDecimal biMonthlyRate) throws SQLException {
-        String sql = "UPDATE employees SET full_name=?, birthdate=?, address=?, position=?, daily_rate=?, bi_monthly_rate=? WHERE id=?";
+                          BigDecimal dailyRate, BigDecimal biMonthlyRate,
+                          String licenseNo, LocalDate licenseExpiry) throws SQLException {
+        String sql = "UPDATE employees SET full_name=?, birthdate=?, address=?, position=?, daily_rate=?, bi_monthly_rate=?, license_no=?, license_expiry=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, fullName);
@@ -79,7 +83,9 @@ public class EmployeeDAO {
             ps.setString(4, position);
             if (dailyRate != null) ps.setBigDecimal(5, dailyRate); else ps.setNull(5, Types.DECIMAL);
             if (biMonthlyRate != null) ps.setBigDecimal(6, biMonthlyRate); else ps.setNull(6, Types.DECIMAL);
-            ps.setInt(7, id);
+            ps.setString(7, licenseNo);
+            if (licenseExpiry != null) ps.setDate(8, java.sql.Date.valueOf(licenseExpiry)); else ps.setNull(8, Types.DATE);
+            ps.setInt(9, id);
             return ps.executeUpdate() > 0;
         }
     }
@@ -136,6 +142,9 @@ public class EmployeeDAO {
         e.setPosition(rs.getString("position"));
         e.setDailyRate(rs.getBigDecimal("daily_rate"));
         e.setBiMonthlyRate(rs.getBigDecimal("bi_monthly_rate"));
+        e.setLicenseNo(rs.getString("license_no"));
+        Date lexp = rs.getDate("license_expiry");
+        if (lexp != null) e.setLicenseExpiry(lexp.toLocalDate());
         e.setActive(rs.getBoolean("is_active"));
         Timestamp ca = rs.getTimestamp("created_at");
         if (ca != null) e.setCreatedAt(ca.toLocalDateTime());
