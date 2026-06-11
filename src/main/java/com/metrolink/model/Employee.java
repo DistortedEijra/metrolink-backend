@@ -15,6 +15,8 @@ public class Employee {
     private String        position;
     private BigDecimal    dailyRate;
     private BigDecimal    biMonthlyRate;
+    private String        licenseNo;
+    private LocalDate     licenseExpiry;
     @JsonProperty("isActive")
     private boolean       isActive;
     private LocalDateTime createdAt;
@@ -45,6 +47,12 @@ public class Employee {
 
     public BigDecimal getBiMonthlyRate()          { return biMonthlyRate; }
     public void setBiMonthlyRate(BigDecimal v)    { this.biMonthlyRate = v; }
+
+    public String getLicenseNo()                  { return licenseNo; }
+    public void setLicenseNo(String v)            { this.licenseNo = v; }
+
+    public LocalDate getLicenseExpiry()           { return licenseExpiry; }
+    public void setLicenseExpiry(LocalDate v)     { this.licenseExpiry = v; }
 
     @JsonIgnore
     public boolean isActive()                 { return isActive; }
