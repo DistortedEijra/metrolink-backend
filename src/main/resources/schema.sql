@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS users (
     username    VARCHAR(50)  NOT NULL UNIQUE,
     password    VARCHAR(255) NOT NULL,          -- bcrypt hash
     full_name   VARCHAR(100) NOT NULL,
+    birthdate   DATE,
+    address     VARCHAR(255),
+    email       VARCHAR(100),
     role        ENUM('ADMIN', 'STAFF') NOT NULL DEFAULT 'STAFF',
     is_active   BOOLEAN NOT NULL DEFAULT TRUE,
     created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -27,6 +30,8 @@ CREATE TABLE IF NOT EXISTS employees (
     id              INT AUTO_INCREMENT PRIMARY KEY,
     employee_code   VARCHAR(30)  NOT NULL UNIQUE,
     full_name       VARCHAR(100) NOT NULL,
+    birthdate       DATE,
+    address         VARCHAR(255),
     position        ENUM('DRIVER','CONDUCTOR','HR','OPERATIONS','MECHANIC') NOT NULL,
     daily_rate      DECIMAL(10,2) NULL DEFAULT NULL,          -- DRIVER / CONDUCTOR only
     bi_monthly_rate DECIMAL(10,2) NULL DEFAULT NULL,          -- HR / OPERATIONS / MECHANIC only
