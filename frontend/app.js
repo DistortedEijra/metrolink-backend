@@ -434,12 +434,18 @@ async function renderTrips() {
     </div>
     <div class="content-card mb-3">
       <div class="table-toolbar">
-        <input type="text" id="tripSearch" class="form-control form-control-sm" style="max-width:220px"
-          placeholder="Search bus, driver…" oninput="searchTrips(this.value)">
-        <input type="date" id="tripDateFilter" class="form-control form-control-sm" style="max-width:160px"
-          onchange="filterByDate(this.value)">
-        <button class="btn btn-outline-secondary btn-sm" onclick="renderTrips()" title="Refresh">
-          <i class="fas fa-sync-alt"></i>
+        <select id="tripDriverFilter" class="form-select form-select-sm" style="max-width:170px">
+          <option value="">All Drivers</option>
+        </select>
+        <select id="tripConductorFilter" class="form-select form-select-sm" style="max-width:170px">
+          <option value="">All Conductors</option>
+        </select>
+        <select id="tripBusFilter" class="form-select form-select-sm" style="max-width:120px">
+          <option value="">All Buses</option>
+        </select>
+        <input type="date" id="tripDateFilter" class="form-control form-control-sm" style="max-width:150px">
+        <button class="btn btn-primary btn-sm" onclick="sendTripFilter()">
+          <i class="fas fa-arrow-right me-1"></i>Enter
         </button>
         <span class="row-count-badge ms-auto" id="tripCount"></span>
       </div>
@@ -467,6 +473,7 @@ async function renderTrips() {
     ]);
     tripDrivers    = tripDrivers.filter(e => e.position === 'DRIVER' && e.isActive);
     tripConductors = tripConductors.filter(e => e.position === 'CONDUCTOR' && e.isActive);
+    populateTripFilters();
     renderTripRows(tripsList);
   } catch { renderTripRows([]); }
 }
@@ -511,28 +518,48 @@ function changeTripPage(p) {
   renderTripRows(_tripRows, false);
 }
 
-async function refreshTripTable() {
-  const search = document.getElementById('tripSearch')?.value.trim() || '';
-  const date = document.getElementById('tripDateFilter')?.value || '';
-  tripsList = await api('/trips');
+// ── Trip filter dropdowns & Send button ──────────────────────
+function populateTripFilters() {
+  const dSel = document.getElementById('tripDriverFilter');
+  const cSel = document.getElementById('tripConductorFilter');
+  const bSel = document.getElementById('tripBusFilter');
+  if (dSel) dSel.innerHTML = '<option value="">All Drivers</option>' +
+    tripDrivers.map(d => `<option value="${d.id}">${d.fullName}</option>`).join('');
+  if (cSel) cSel.innerHTML = '<option value="">All Conductors</option>' +
+    tripConductors.map(c => `<option value="${c.id}">${c.fullName}</option>`).join('');
+  if (bSel) bSel.innerHTML = '<option value="">All Buses</option>' +
+    tripBuses.map(b => `<option value="${b.busNumber}">${b.busNumber}</option>`).join('');
+}
 
-  if (search) {
-    renderTripRows(await api(`/trips/search?q=${encodeURIComponent(search)}`), false);
-  } else if (date) {
-    renderTripRows(await api(`/trips/date?date=${date}`), false);
-  } else {
-    renderTripRows(tripsList, false);
+function sendTripFilter(resetPage = true) {
+  const driverId    = document.getElementById('tripDriverFilter')?.value;
+  const conductorId = document.getElementById('tripConductorFilter')?.value;
+  const busNum      = document.getElementById('tripBusFilter')?.value;
+  const dateVal     = document.getElementById('tripDateFilter')?.value;
+
+  let filtered = tripsList;
+
+  if (busNum) {
+    filtered = filtered.filter(t => t.busNumber === busNum);
   }
+  if (dateVal) {
+    filtered = filtered.filter(t => t.tripDate === dateVal);
+  }
+  if (driverId) {
+    const driver = tripDrivers.find(d => d.id == driverId);
+    if (driver) filtered = filtered.filter(t => t.driverName === driver.fullName);
+  }
+  if (conductorId) {
+    const conductor = tripConductors.find(c => c.id == conductorId);
+    if (conductor) filtered = filtered.filter(t => t.conductorName === conductor.fullName);
+  }
+
+  renderTripRows(filtered, resetPage);
 }
 
-function searchTrips(q) {
-  if (!q.trim()) { renderTripRows(tripsList); return; }
-  api(`/trips/search?q=${encodeURIComponent(q)}`).then(renderTripRows).catch(() => {});
-}
-
-function filterByDate(d) {
-  if (!d) { renderTripRows(tripsList); return; }
-  api(`/trips/date?date=${d}`).then(renderTripRows).catch(() => {});
+async function refreshTripTable() {
+  tripsList = await api('/trips');
+  sendTripFilter(false);
 }
 
 function getTripModal() {
@@ -1024,12 +1051,22 @@ async function renderEmployees() {
           <option value="">All Positions</option>
           <option value="DRIVER">Driver</option>
           <option value="CONDUCTOR">Conductor</option>
+          <option value="HR">HR</option>
+          <option value="OPERATIONS">Operations</option>
+          <option value="MECHANIC">Mechanic</option>
+        </select>
+        <select id="empLicenseFilter" class="form-select form-select-sm" style="max-width:155px" onchange="filterEmployeeRows()">
+          <option value="">All Licenses</option>
+          <option value="valid">License Valid</option>
+          <option value="expiring">License Expiring Soon</option>
+          <option value="expired">License Expired</option>
+          <option value="none">No License Required</option>
         </select>
         <span class="row-count-badge ms-auto" id="empCount"></span>
       </div>
       <div class="table-responsive">
         <table class="table table-hover mb-0">
-          <thead><tr><th>Code</th><th>Name</th><th>Birthdate</th><th>Address</th><th>Position</th><th>Daily Rate</th><th>Bi-Monthly Rate</th><th>Status</th>
+          <thead><tr><th>Code</th><th>Name</th><th>Birthdate</th><th>Address</th><th>Position</th><th>License Expiry</th><th>Daily Rate</th><th>Bi-Monthly Rate</th><th>Status</th>
             ${isAdmin() ? '<th>Actions</th>' : ''}</tr></thead>
           <tbody id="empBody"><tr><td colspan="6" class="table-empty">
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
@@ -1054,7 +1091,7 @@ function renderEmployeeRows(rows, resetPage = true) {
   if (resetPage) _empPage = 1;
   setRowCount('empCount', rows.length, 'employee');
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="8" class="table-empty"><i class="fas fa-users"></i>No employees found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="9" class="table-empty"><i class="fas fa-users"></i>No employees found</td></tr>`;
     document.getElementById('empPager').innerHTML = '';
     return;
   }
@@ -1066,6 +1103,7 @@ function renderEmployeeRows(rows, resetPage = true) {
       <td>${e.birthdate || '—'}</td>
       <td>${dash(e.address)}</td>
       <td><span class="status-badge ${{DRIVER:'status-driver',CONDUCTOR:'status-conductor',HR:'status-hr',OPERATIONS:'status-operations',MECHANIC:'status-mechanic'}[e.position]||'status-inactive'}">${e.position}</span></td>
+      <td>${expiryCell(e.licenseExpiry)}</td>
       <td>${e.dailyRate != null ? peso(e.dailyRate) : '—'}</td>
       <td>${e.biMonthlyRate != null ? peso(e.biMonthlyRate) : '—'}</td>
       <td><span class="status-badge ${e.isActive ? 'status-active' : 'status-inactive'}">${e.isActive ? 'Active' : 'Inactive'}</span></td>
@@ -1086,11 +1124,24 @@ function changeEmpPage(p) {
 }
 
 function filterEmployeeRows(q, resetPage = true) {
-  const search = (q ?? document.getElementById('empSearch')?.value ?? '').toLowerCase();
-  const pos    = document.getElementById('empPosFilter')?.value || '';
-  const rows   = (window._emps || []).filter(e =>
-    (!search || e.fullName.toLowerCase().includes(search) || e.employeeCode.toLowerCase().includes(search)) &&
-    (!pos || e.position === pos));
+  const search   = (q ?? document.getElementById('empSearch')?.value ?? '').toLowerCase();
+  const pos      = document.getElementById('empPosFilter')?.value || '';
+  const lic      = document.getElementById('empLicenseFilter')?.value || '';
+  const today    = new Date().toISOString().split('T')[0];
+  const in30     = addDays(today, 30);
+  const rows     = (window._emps || []).filter(e => {
+    if (search && !e.fullName.toLowerCase().includes(search) && !e.employeeCode.toLowerCase().includes(search)) return false;
+    if (pos && e.position !== pos) return false;
+    if (lic) {
+      const isOperator = ['DRIVER','CONDUCTOR'].includes(e.position);
+      if (lic === 'none') return !isOperator;
+      if (!isOperator || !e.licenseExpiry) return false;
+      if (lic === 'expired') return e.licenseExpiry < today;
+      if (lic === 'expiring') return e.licenseExpiry >= today && e.licenseExpiry <= in30;
+      if (lic === 'valid') return e.licenseExpiry > in30;
+    }
+    return true;
+  });
   renderEmployeeRows(rows, resetPage);
 }
 
@@ -1137,6 +1188,17 @@ function getEmployeeModal() {
               <label class="form-label">Address</label>
               <input type="text" id="empAddress" class="form-control" placeholder="Street, City">
             </div>
+            <div class="col-12" id="empLicenseSection" style="display:none">
+              <hr class="my-1"><div class="text-muted small fw-bold">License Documents</div>
+            </div>
+            <div class="col-md-6" id="empLicenseNoWrap" style="display:none">
+              <label class="form-label">License No.</label>
+              <input type="text" id="empLicenseNo" class="form-control" placeholder="e.g. D12-88-123456">
+            </div>
+            <div class="col-md-6" id="empLicenseExpiryWrap" style="display:none">
+              <label class="form-label">License Expiry</label>
+              <input type="date" id="empLicenseExpiry" class="form-control">
+            </div>
           </div>
         </div>
         <div class="modal-footer">
@@ -1156,12 +1218,15 @@ function onEmpPosChange() {
   if (!document.getElementById('empId').value) {
     document.getElementById('empRate').value = isDaily ? '1225' : '';
   }
+  const showLicense = ['DRIVER','CONDUCTOR'].includes(pos);
+  ['empLicenseSection','empLicenseNoWrap','empLicenseExpiryWrap'].forEach(
+    id => document.getElementById(id).style.display = showLicense ? '' : 'none');
 }
 
 function openAddEmployee() {
   document.getElementById('empModalTitle').textContent = 'Add Employee';
   document.getElementById('empId').value = '';
-  ['empCode','empName','empBirthdate','empAddress'].forEach(id => document.getElementById(id).value = '');
+  ['empCode','empName','empBirthdate','empAddress','empLicenseNo','empLicenseExpiry'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('empPos').value = 'DRIVER';
   document.getElementById('empRate').value = '1225';
   onEmpPosChange();
@@ -1178,6 +1243,8 @@ async function openEditEmployee(id) {
   document.getElementById('empBirthdate').value = emp.birthdate || '';
   document.getElementById('empAddress').value = emp.address || '';
   document.getElementById('empPos').value = emp.position;
+  document.getElementById('empLicenseNo').value = emp.licenseNo || '';
+  document.getElementById('empLicenseExpiry').value = emp.licenseExpiry || '';
   const isDaily = ['DRIVER','CONDUCTOR'].includes(emp.position);
   document.getElementById('empRate').value = isDaily ? (emp.dailyRate ?? '') : (emp.biMonthlyRate ?? '');
   onEmpPosChange();
@@ -1196,7 +1263,9 @@ async function saveEmployee() {
     address:       document.getElementById('empAddress').value.trim() || null,
     position:      pos,
     dailyRate:     isDaily ? rateVal : null,
-    biMonthlyRate: isDaily ? null : rateVal
+    biMonthlyRate: isDaily ? null : rateVal,
+    licenseNo:     document.getElementById('empLicenseNo').value.trim() || null,
+    licenseExpiry: document.getElementById('empLicenseExpiry').value || null
   };
   if (!body.fullName) { toast('Full name is required', 'warning'); return; }
   if (id) {
@@ -1447,6 +1516,7 @@ async function renderReports() {
         <button class="btn btn-outline-primary btn-sm" onclick="loadReport('trips')">Trip Report</button>
         <button class="btn btn-outline-warning btn-sm" onclick="loadReport('low-income')">Low Income</button>
         ${isAdmin() ? `<button class="btn btn-outline-secondary btn-sm" onclick="loadReport('changelog')">Changelogs</button>` : ''}
+        <button class="btn btn-success btn-sm ms-auto" onclick="downloadReportPDF()"><i class="fas fa-file-pdf me-1"></i>Generate Report</button>
       </div>
     </div>
     <div id="reportContent"></div>`);
@@ -1587,6 +1657,211 @@ function renderReportRows() {
 function changeReportPage(p) {
   _reportPage = p;
   renderReportRows();
+}
+
+// ── PDF Download ─────────────────────────────────────────────
+function pdfPeso(v) {
+  return v == null || v === '—' ? '—' : 'PHP ' + Number(v).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+}
+
+async function downloadReportPDF() {
+  const from = document.getElementById('rFrom').value;
+  const to   = document.getElementById('rTo').value;
+  if (!from || !to) { toast('Select date range', 'warning'); return; }
+
+  toast('Generating PDF…', 'info');
+
+  try {
+    const [summary, trips, lowIncome] = await Promise.all([
+      api(`/reports/summary?from=${from}&to=${to}`),
+      api(`/reports/trips?from=${from}&to=${to}`),
+      api(`/reports/low-income?from=${from}&to=${to}`)
+    ]);
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF('landscape', 'mm', 'a4');
+    const pageW = doc.internal.pageSize.getWidth();
+
+    // ── Header ──────────────────────────────────────────────
+    doc.setFontSize(16);
+    doc.setTextColor(0, 51, 102);
+    doc.text('Metrolink FOMS — Financial Report', pageW / 2, 18, { align: 'center' });
+    doc.setFontSize(10);
+    doc.setTextColor(80);
+    doc.text(`Period: ${from} to ${to}  |  Generated: ${new Date().toLocaleString('en-PH')}`, pageW / 2, 25, { align: 'center' });
+
+    // ── Summary Section ─────────────────────────────────────
+    let y = 33;
+    doc.setFontSize(13);
+    doc.setTextColor(0, 51, 102);
+    doc.text('Summary', 14, y);
+    y += 5;
+
+    const sumRows = [
+      ['Total Trips', String(summary.totalTrips ?? 0),
+       'Gross Income', pdfPeso(summary.totalGrossIncome)],
+      ['Net Income', pdfPeso(summary.totalNetIncome),
+       'Total Expenses', pdfPeso(summary.totalExpenses)],
+      ['Net Profit', pdfPeso(summary.totalNetProfit),
+       'Avg Gross / Trip', pdfPeso(summary.avgGrossIncome)]
+    ];
+    doc.autoTable({
+      startY: y,
+      head: [],
+      body: sumRows,
+      theme: 'grid',
+      tableWidth: pageW - 28,
+      margin: { left: 14 },
+      styles: { fontSize: 9, cellPadding: 3, halign: 'center' },
+      columnStyles: {
+        0: { cellWidth: 30, halign: 'left', fontStyle: 'bold' },
+        1: { cellWidth: (pageW - 28) / 4 - 30, halign: 'right' },
+        2: { cellWidth: 30, halign: 'left', fontStyle: 'bold' },
+        3: { cellWidth: (pageW - 28) / 4 - 30, halign: 'right' }
+      },
+      didParseCell(data) {
+        // Highlight Net Profit row
+        if (data.section === 'body' && data.row.index === 2) {
+          if (data.column.index === 1 || data.column.index === 3) {
+            const val = data.cell.raw === '—' ? 0 : parseFloat(String(data.cell.raw).replace(/[^0-9.-]/g, ''));
+            if (val < 0) {
+              data.cell.styles.textColor = [200, 0, 0];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        }
+      }
+    });
+    y = doc.lastAutoTable.finalY + 8;
+
+    // ── Trip Report Section ─────────────────────────────────
+    doc.setFontSize(13);
+    doc.setTextColor(0, 51, 102);
+    doc.text('Trip Report', 14, y);
+    y += 5;
+
+    if (!trips.length) {
+      doc.setFontSize(10);
+      doc.setTextColor(120);
+      doc.text('No trip data available for the selected period.', 14, y + 5);
+    } else {
+      const tripBody = trips.map(r => [
+        r.tripDate || '—',
+        r.busNumber || '—',
+        r.driverName || '—',
+        r.conductorName || '—',
+        String(r.tripCount ?? 0),
+        pdfPeso(r.grossIncome),
+        pdfPeso(r.netIncome),
+        pdfPeso(r.totalExpenses),
+        pdfPeso(r.netProfit),
+        r.isModified ? 'Yes' : '—'
+      ]);
+      doc.autoTable({
+        startY: y,
+        head: [['Date', 'Bus', 'Driver', 'Conductor', 'Trips', 'Gross', 'Net Income', 'Expenses', 'Net Profit', 'Mod']],
+        body: tripBody,
+        theme: 'striped',
+        margin: { left: 14, right: 14 },
+        headStyles: { fillColor: [0, 51, 102], fontSize: 8, halign: 'center' },
+        styles: { fontSize: 7, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 22 },
+          1: { cellWidth: 14 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 10, halign: 'center' },
+          5: { cellWidth: 24, halign: 'right' },
+          6: { cellWidth: 24, halign: 'right' },
+          7: { cellWidth: 22, halign: 'right' },
+          8: { cellWidth: 22, halign: 'right' },
+          9: { cellWidth: 10, halign: 'center' }
+        },
+        didParseCell(data) {
+          if (data.section === 'body' && data.column.index === 8) {
+            const val = data.cell.raw === '—' ? 0 : parseFloat(String(data.cell.raw).replace(/[^0-9.-]/g, ''));
+            if (val < 0) {
+              data.cell.styles.textColor = [200, 0, 0];
+              data.cell.styles.fontStyle = 'bold';
+            }
+          }
+        }
+      });
+    }
+    y = doc.lastAutoTable ? doc.lastAutoTable.finalY + 8 : y + 15;
+
+    // ── Low Income Section ──────────────────────────────────
+    // Check if we need a new page
+    if (y > 170) {
+      doc.addPage();
+      y = 20;
+    }
+    doc.setFontSize(13);
+    doc.setTextColor(0, 51, 102);
+    doc.text('Low Income Trips (Below PHP 13,000 Quota)', 14, y);
+    y += 5;
+
+    // Warning note
+    doc.setFontSize(8);
+    doc.setTextColor(180, 100, 0);
+    doc.text('Showing trips where Gross Income < PHP 13,000 (below quota)', 14, y);
+    y += 5;
+
+    if (!lowIncome.length) {
+      doc.setFontSize(10);
+      doc.setTextColor(0, 128, 0);
+      doc.text('No low-income trips for the selected period.', 14, y + 5);
+    } else {
+      const liBody = lowIncome.map(r => [
+        r.tripDate || '—',
+        r.busNumber || '—',
+        r.driverName || '—',
+        r.conductorName || '—',
+        pdfPeso(r.grossIncome),
+        pdfPeso(r.netIncome)
+      ]);
+      doc.autoTable({
+        startY: y,
+        head: [['Date', 'Bus', 'Driver', 'Conductor', 'Gross Income', 'Net Income']],
+        body: liBody,
+        theme: 'striped',
+        margin: { left: 14, right: 14 },
+        headStyles: { fillColor: [180, 100, 0], fontSize: 8, halign: 'center' },
+        styles: { fontSize: 8, cellPadding: 2 },
+        columnStyles: {
+          0: { cellWidth: 30 },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 40 },
+          4: { cellWidth: 35, halign: 'right' },
+          5: { cellWidth: 35, halign: 'right' }
+        },
+        didParseCell(data) {
+          if (data.section === 'body' && (data.column.index === 4 || data.column.index === 5)) {
+            data.cell.styles.textColor = [180, 0, 0];
+          }
+        }
+      });
+    }
+
+    // ── Footer ──────────────────────────────────────────────
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(7);
+      doc.setTextColor(150);
+      doc.text(
+        `Metrolink FOMS — Page ${i} of ${pageCount}`,
+        pageW / 2, doc.internal.pageSize.getHeight() - 8,
+        { align: 'center' }
+      );
+    }
+
+    doc.save(`Metrolink_Report_${from}_to_${to}.pdf`);
+    toast('PDF downloaded!');
+  } catch (e) {
+    toast('Failed to generate PDF: ' + (e.message || e), 'danger');
+  }
 }
 
 // ── Trip changelog before/after diff ────────────────────────
