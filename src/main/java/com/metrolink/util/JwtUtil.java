@@ -22,12 +22,20 @@ public class JwtUtil {
     static {
         Properties props = new Properties();
         try (InputStream is = JwtUtil.class.getClassLoader().getResourceAsStream("config.properties")) {
-            props.load(is);
+            if (is != null) props.load(is);
         } catch (IOException e) {
             throw new RuntimeException("Cannot load config.properties for JWT", e);
         }
-        SECRET        = props.getProperty("jwt.secret");
-        EXPIRATION_MS = Long.parseLong(props.getProperty("jwt.expirationMs", "86400000"));
+
+        String secret = System.getenv("JWT_SECRET");
+        SECRET = (secret != null && !secret.isBlank())
+                ? secret
+                : props.getProperty("jwt.secret", "MetrolinkSuperSecretKey2025ChangeThisInProduction!");
+
+        String expMs = System.getenv("JWT_EXPIRATION_MS");
+        EXPIRATION_MS = Long.parseLong((expMs != null && !expMs.isBlank())
+                ? expMs
+                : props.getProperty("jwt.expirationMs", "86400000"));
     }
 
     private static Key getSigningKey() {

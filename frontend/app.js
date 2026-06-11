@@ -1,9 +1,11 @@
 /* ============================================================
    Metrolink FOMS — Single-Page Application
-   API base: http://localhost:8080/metrolink-backend/api
+   API base: <origin>/metrolink-backend/api (same Tomcat instance
+   serves both the frontend and the backend WAR, so this works
+   unchanged for localhost and for any deployed domain).
    ============================================================ */
 
-const API = 'http://localhost:8080/metrolink-backend/api';
+const API = window.location.origin + '/metrolink-backend/api';
 let currentPage = 'trips';
 
 // ── Auth helpers ───────────────────────────────────────────

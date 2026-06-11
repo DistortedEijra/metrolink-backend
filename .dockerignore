@@ -1,0 +1,7 @@
+target/
+dist/
+desktop-app/
+launcher/
+.git/
+node_modules/
+*.md

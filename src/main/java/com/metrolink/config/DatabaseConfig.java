@@ -38,10 +38,10 @@ public class DatabaseConfig {
         try {
             Properties props = loadProperties();
             HikariConfig config = new HikariConfig();
-            config.setJdbcUrl(props.getProperty("db.url"));
-            config.setUsername(props.getProperty("db.username"));
-            config.setPassword(props.getProperty("db.password"));
-            config.setDriverClassName(props.getProperty("db.driver"));
+            config.setJdbcUrl(resolveUrl(props));
+            config.setUsername(firstNonBlank(env("DB_USERNAME"), env("MYSQLUSER"), props.getProperty("db.username"), "root"));
+            config.setPassword(firstNonBlank(env("DB_PASSWORD"), env("MYSQLPASSWORD"), props.getProperty("db.password"), ""));
+            config.setDriverClassName(props.getProperty("db.driver", "com.mysql.cj.jdbc.Driver"));
             config.setMaximumPoolSize(Integer.parseInt(props.getProperty("db.pool.maximumPoolSize", "10")));
             config.setMinimumIdle(Integer.parseInt(props.getProperty("db.pool.minimumIdle", "2")));
             config.setConnectionTimeout(Long.parseLong(props.getProperty("db.pool.connectionTimeout", "30000")));
@@ -54,13 +54,44 @@ public class DatabaseConfig {
         }
     }
 
+    /**
+     * Resolves the JDBC URL with the following precedence: explicit DB_URL env
+     * var, then a URL built from Railway-style MYSQLHOST/MYSQLPORT vars, then
+     * config.properties, then a localhost default.
+     */
+    private static String resolveUrl(Properties props) {
+        String url = env("DB_URL");
+        if (url != null) return url;
+
+        String host = env("MYSQLHOST");
+        if (host != null) {
+            String port = firstNonBlank(env("MYSQLPORT"), "3306");
+            return "jdbc:mysql://" + host + ":" + port
+                    + "/metrolink_db?useSSL=false&serverTimezone=Asia/Manila&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&useUnicode=true";
+        }
+
+        return props.getProperty("db.url",
+                "jdbc:mysql://localhost:3306/metrolink_db?useSSL=false&serverTimezone=Asia/Manila&allowPublicKeyRetrieval=true&characterEncoding=UTF-8&useUnicode=true");
+    }
+
+    private static String env(String name) {
+        String v = System.getenv(name);
+        return (v == null || v.isBlank()) ? null : v;
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) {
+            if (v != null && !v.isBlank()) return v;
+        }
+        return null;
+    }
+
     private static Properties loadProperties() {
         Properties props = new Properties();
         try (InputStream is = DatabaseConfig.class
                 .getClassLoader()
                 .getResourceAsStream("config.properties")) {
-            if (is == null) throw new RuntimeException("config.properties not found");
-            props.load(is);
+            if (is != null) props.load(is);
         } catch (IOException e) {
             throw new RuntimeException("Could not load config.properties", e);
         }
