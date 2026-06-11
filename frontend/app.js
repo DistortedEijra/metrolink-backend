@@ -481,14 +481,14 @@ function renderTripRows(rows, resetPage = true) {
       <td>${dash(t.driverName)}</td>
       <td>${dash(t.conductorName)}</td>
       <td>${t.dispatchTime || '—'}</td>
-      <td>${t.arrivalTime || '—'}</td>
+      <td>${t.arrivalTime ? t.arrivalTime + (t.arrivalDate && t.arrivalDate !== t.tripDate ? ' <span class="badge bg-secondary" title="Arrived on ' + t.arrivalDate + '">+1d</span>' : '') : '—'}</td>
       <td class="text-center">${t.tripCount}</td>
       <td>${t.isModified ? '<span class="status-badge status-modified">Modified</span>' : '<span class="status-badge status-active">Original</span>'}</td>
       <td>
         <button class="btn btn-outline-primary btn-icon me-1" onclick="openIncomeExp(${t.id},'${t.busNumber}','${t.tripDate}')" title="Income & Expenses">
           <i class="fas fa-dollar-sign"></i>
         </button>
-        <button class="btn btn-outline-success btn-icon me-1" onclick="openArrivalModal(${t.id},'${t.arrivalTime||''}')" title="Set Arrival Time">
+        <button class="btn btn-outline-success btn-icon me-1" onclick="openArrivalModal(${t.id},'${t.arrivalTime||''}','${t.arrivalDate||''}','${t.tripDate}','${t.dispatchTime||''}')" title="Set Arrival Time">
           <i class="fas fa-clock"></i>
         </button>
         ${isAdmin() ? `<button class="btn btn-outline-secondary btn-icon" onclick="openEditTrip(${t.id})" title="Edit Trip"><i class="fas fa-edit"></i></button>` : ''}
@@ -616,6 +616,7 @@ async function openEditTrip(id) {
   document.getElementById('tRemarks').value = trip.remarks || '';
   populateTripDropdowns(trip.busId, trip.driverId, trip.conductorId);
   await refreshAvailableStaff();
+  document.getElementById('tBus').value       = trip.busId;
   document.getElementById('tDriver').value    = trip.driverId;
   document.getElementById('tConductor').value = trip.conductorId;
   new bootstrap.Modal(document.getElementById('tripModal')).show();
@@ -650,9 +651,10 @@ async function refreshAvailableStaff() {
   if (!date) return;
   const excludeId = savedTripId || 0;
   try {
-    const { drivers, conductors } = await api(`/trips/available-staff?date=${date}&excludeTripId=${excludeId}`);
+    const { drivers, conductors, buses } = await api(`/trips/available-staff?date=${date}&excludeTripId=${excludeId}`);
     const curDriver    = document.getElementById('tDriver').value;
     const curConductor = document.getElementById('tConductor').value;
+    const curBus       = document.getElementById('tBus').value;
     document.getElementById('tDriver').innerHTML =
       drivers.length
         ? drivers.map(d => `<option value="${d.id}" ${d.id == curDriver ? 'selected' : ''}>${d.fullName}</option>`).join('')
@@ -661,6 +663,10 @@ async function refreshAvailableStaff() {
       conductors.length
         ? conductors.map(c => `<option value="${c.id}" ${c.id == curConductor ? 'selected' : ''}>${c.fullName}</option>`).join('')
         : '<option value="" disabled>No conductors available for this date</option>';
+    document.getElementById('tBus').innerHTML =
+      buses.length
+        ? buses.map(b => `<option value="${b.id}" ${b.id == curBus ? 'selected' : ''}>${b.busNumber} — ${b.plateNo}</option>`).join('')
+        : '<option value="" disabled>No buses available for this date</option>';
   } catch {}
 }
 
@@ -931,9 +937,13 @@ function getArrivalModal() {
         </div>
         <div class="modal-body">
           <input type="hidden" id="arrivalTripId">
+          <input type="hidden" id="arrivalTripDate">
+          <input type="hidden" id="arrivalDispatchTime">
           <label class="form-label fw-semibold">Arrival Time</label>
-          <input type="time" id="arrivalTimeInput" class="form-control">
-          <div class="form-text text-muted">Leave blank to clear the arrival time.</div>
+          <input type="time" id="arrivalTimeInput" class="form-control mb-2" oninput="suggestArrivalDate()">
+          <label class="form-label fw-semibold">Arrival Date</label>
+          <input type="date" id="arrivalDateInput" class="form-control">
+          <div class="form-text text-muted">Leave time blank to clear the arrival record. Date defaults based on dispatch time but can be changed.</div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -946,9 +956,34 @@ function getArrivalModal() {
   </div>`;
 }
 
-function openArrivalModal(tripId, currentArrival) {
+// Heuristic default: arrived same day as the trip unless arrival time is earlier
+// than dispatch time (i.e. the bus crossed midnight), in which case it's +1 day.
+function guessArrivalDate(tripDate, dispatchTime, arrivalTime) {
+  if (!arrivalTime) return tripDate;
+  return (arrivalTime >= dispatchTime) ? tripDate : addDays(tripDate, 1);
+}
+
+function addDays(dateStr, n) {
+  const [y, m, d] = dateStr.split('-').map(Number);
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  dt.setUTCDate(dt.getUTCDate() + n);
+  return dt.toISOString().split('T')[0];
+}
+
+function suggestArrivalDate() {
+  const time = document.getElementById('arrivalTimeInput').value;
+  const tripDate = document.getElementById('arrivalTripDate').value;
+  const dispatch = document.getElementById('arrivalDispatchTime').value;
+  document.getElementById('arrivalDateInput').value = time ? guessArrivalDate(tripDate, dispatch, time + ':00') : '';
+}
+
+function openArrivalModal(tripId, currentArrival, currentArrivalDate, tripDate, dispatchTime) {
   document.getElementById('arrivalTripId').value = tripId;
+  document.getElementById('arrivalTripDate').value = tripDate;
+  document.getElementById('arrivalDispatchTime').value = dispatchTime;
   document.getElementById('arrivalTimeInput').value = currentArrival ? currentArrival.substring(0, 5) : '';
+  document.getElementById('arrivalDateInput').value = currentArrivalDate ||
+    (currentArrival ? guessArrivalDate(tripDate, dispatchTime, currentArrival) : '');
   new bootstrap.Modal(document.getElementById('arrivalModal')).show();
 }
 
@@ -956,9 +991,13 @@ async function saveArrivalTime() {
   const btn = document.getElementById('arrivalSaveBtn');
   const tripId = document.getElementById('arrivalTripId').value;
   const timeVal = document.getElementById('arrivalTimeInput').value;
+  const dateVal = document.getElementById('arrivalDateInput').value;
   try {
     btn.disabled = true;
-    await api(`/trips/${tripId}`, 'PATCH', { arrivalTime: timeVal ? timeVal + ':00' : null });
+    await api(`/trips/${tripId}`, 'PATCH', {
+      arrivalTime: timeVal ? timeVal + ':00' : null,
+      arrivalDate: timeVal ? (dateVal || null) : null
+    });
     bootstrap.Modal.getInstance(document.getElementById('arrivalModal')).hide();
     await refreshTripTable();
     toast(timeVal ? 'Arrival time saved!' : 'Arrival time cleared');

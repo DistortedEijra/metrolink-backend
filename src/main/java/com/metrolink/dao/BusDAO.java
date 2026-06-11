@@ -3,6 +3,7 @@ package com.metrolink.dao;
 import com.metrolink.config.DatabaseConfig;
 
 import java.sql.*;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -28,6 +29,34 @@ public class BusDAO {
              Statement st = c.createStatement();
              ResultSet rs = st.executeQuery(sql)) {
             while (rs.next()) list.add(mapRow(rs));
+        }
+        return list;
+    }
+
+    public List<Map<String, Object>> findAvailableForDate(LocalDate date, int excludeTripId) throws SQLException {
+        String sql =
+            "SELECT * FROM buses " +
+            "WHERE status = 'ACTIVE' " +
+            "  AND id NOT IN (" +
+            "    SELECT bus_id FROM trips " +
+            "    WHERE trip_date IN (?, ?) AND id != ? " +
+            "      AND (" +
+            "        arrival_time IS NULL " +
+            "        OR TIMESTAMP(" +
+            "             COALESCE(arrival_date, IF(arrival_time >= dispatch_time, trip_date, DATE_ADD(trip_date, INTERVAL 1 DAY)))," +
+            "             arrival_time" +
+            "           ) > NOW()" +
+            "      )" +
+            "  ) ORDER BY bus_number";
+        List<Map<String, Object>> list = new ArrayList<>();
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setDate(1, java.sql.Date.valueOf(date));
+            ps.setDate(2, java.sql.Date.valueOf(date.minusDays(1)));
+            ps.setInt(3, excludeTripId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) list.add(mapRow(rs));
+            }
         }
         return list;
     }

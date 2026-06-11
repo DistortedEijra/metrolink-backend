@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS trips (
     conductor_id    INT         NOT NULL,
     dispatch_time   TIME        NOT NULL,
     arrival_time    TIME,
+    arrival_date    DATE,                                -- calendar date the bus actually arrived (handles overnight trips)
     trip_count      INT         NOT NULL DEFAULT 0,  -- number of rotations (PITX->Monumento->PITX)
     remarks         TEXT,
     is_modified     BOOLEAN     NOT NULL DEFAULT FALSE,  -- flagged if admin edits it

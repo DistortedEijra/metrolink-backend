@@ -118,6 +118,12 @@ SELECT '2026-06-09', b.id, drv.id, con.id, '05:30:00', '21:45:00', 7,  NULL,    
 ) AS src
 ON DUPLICATE KEY UPDATE trip_count = VALUES(trip_count);
 
+-- Backfill arrival_date for seeded trips using the same day-rollover heuristic
+-- the app uses when no explicit arrival date has been recorded.
+UPDATE trips
+SET arrival_date = IF(arrival_time >= dispatch_time, trip_date, DATE_ADD(trip_date, INTERVAL 1 DAY))
+WHERE arrival_time IS NOT NULL AND arrival_date IS NULL;
+
 -- ============================================================
 -- INCOME — one record per trip
 -- Formula: driver_income=15%, conductor_income=10%,

@@ -31,6 +31,7 @@ public class TripServlet extends HttpServlet {
     private final ChangelogDAO changelogDAO = new ChangelogDAO();
     private final AuditDAO     auditDAO     = new AuditDAO();
     private final EmployeeDAO  employeeDAO  = new EmployeeDAO();
+    private final BusDAO       busDAO       = new BusDAO();
     private final ObjectMapper mapper       = ResponseUtil.getMapper();
 
     @Override
@@ -49,7 +50,8 @@ public class TripServlet extends HttpServlet {
                 int excludeId     = (excludeStr != null && !excludeStr.isBlank()) ? Integer.parseInt(excludeStr) : 0;
                 var drivers    = employeeDAO.findAvailableForDate(date, excludeId, "DRIVER");
                 var conductors = employeeDAO.findAvailableForDate(date, excludeId, "CONDUCTOR");
-                ResponseUtil.success(res, Map.of("drivers", drivers, "conductors", conductors));
+                var buses      = busDAO.findAvailableForDate(date, excludeId);
+                ResponseUtil.success(res, Map.of("drivers", drivers, "conductors", conductors, "buses", buses));
                 return;
             }
 
@@ -170,13 +172,19 @@ public class TripServlet extends HttpServlet {
 
             // POST /api/trips — create trip
             Map<String, Object> body = ResponseUtil.parseBody(req);
+            LocalDate tripDate = LocalDate.parse((String) body.get("tripDate"));
+            String dispatchTime = (String) body.get("dispatchTime");
+            String arrivalTime = (String) body.getOrDefault("arrivalTime", null);
+            LocalDate arrivalDate = resolveArrivalDate(tripDate, dispatchTime, arrivalTime,
+                (String) body.getOrDefault("arrivalDate", null));
             var created = tripDAO.create(
-                LocalDate.parse((String) body.get("tripDate")),
+                tripDate,
                 (int) body.get("busId"),
                 (int) body.get("driverId"),
                 (int) body.get("conductorId"),
-                (String) body.get("dispatchTime"),
-                (String) body.getOrDefault("arrivalTime", null),
+                dispatchTime,
+                arrivalTime,
+                arrivalDate,
                 (int) body.getOrDefault("tripCount", 0),
                 (String) body.getOrDefault("remarks", null),
                 userId
@@ -212,7 +220,13 @@ public class TripServlet extends HttpServlet {
             Map<String, Object> body = ResponseUtil.parseBody(req);
             String arrivalTime = (String) body.getOrDefault("arrivalTime", null);
 
-            boolean updated = tripDAO.updateArrival(id, arrivalTime);
+            var trip = tripDAO.findById(id);
+            if (trip == null) { ResponseUtil.error(res, 404, "Trip not found"); return; }
+            LocalDate arrivalDate = resolveArrivalDate(
+                (LocalDate) trip.get("tripDate"), (String) trip.get("dispatchTime"),
+                arrivalTime, (String) body.getOrDefault("arrivalDate", null));
+
+            boolean updated = tripDAO.updateArrival(id, arrivalTime, arrivalDate);
             if (updated) {
                 auditDAO.log(userId, username, "UPDATE_ARRIVAL", "TRIP", id, null);
             }
@@ -242,15 +256,18 @@ public class TripServlet extends HttpServlet {
             int bodyConductorId = (int) body.get("conductorId");
             String bodyDispatchTime = (String) body.get("dispatchTime");
             String bodyArrivalTime = (String) body.getOrDefault("arrivalTime", null);
+            LocalDate bodyArrivalDate = resolveArrivalDate(bodyTripDate, bodyDispatchTime, bodyArrivalTime,
+                (String) body.getOrDefault("arrivalDate", null));
             int bodyTripCount = (int) body.getOrDefault("tripCount", 0);
             String bodyRemarks = (String) body.getOrDefault("remarks", null);
-            
+
             boolean changed = !Objects.equals(before.get("tripDate"), bodyTripDate)
                            || !Objects.equals(before.get("busId"), bodyBusId)
                            || !Objects.equals(before.get("driverId"), bodyDriverId)
                            || !Objects.equals(before.get("conductorId"), bodyConductorId)
                            || !Objects.equals(normTime((String) before.get("dispatchTime")), normTime(bodyDispatchTime))
                            || !Objects.equals(normTime((String) before.get("arrivalTime")), normTime(bodyArrivalTime))
+                           || !Objects.equals(before.get("arrivalDate"), bodyArrivalDate)
                            || !Objects.equals(before.get("tripCount"), bodyTripCount)
                            || !Objects.equals(normStr((String) before.get("remarks")), normStr(bodyRemarks));
 
@@ -267,6 +284,7 @@ public class TripServlet extends HttpServlet {
                 bodyConductorId,
                 bodyDispatchTime,
                 bodyArrivalTime,
+                bodyArrivalDate,
                 bodyTripCount,
                 bodyRemarks,
                 editorId
@@ -296,6 +314,20 @@ public class TripServlet extends HttpServlet {
 
     private java.math.BigDecimal bd(Map<String, Object> body, String key) {
         return new java.math.BigDecimal(body.getOrDefault(key, 0).toString());
+    }
+
+    /**
+     * Resolves the calendar date a trip arrived on. If the client supplied an explicit
+     * arrivalDate, that wins. Otherwise, falls back to the day-rollover heuristic:
+     * arrivalTime >= dispatchTime => arrived same day as tripDate, else the next day.
+     */
+    private LocalDate resolveArrivalDate(LocalDate tripDate, String dispatchTime,
+                                          String arrivalTime, String arrivalDateStr) {
+        if (arrivalTime == null || arrivalTime.isBlank()) return null;
+        if (arrivalDateStr != null && !arrivalDateStr.isBlank()) return LocalDate.parse(arrivalDateStr);
+        String at = normTime(arrivalTime);
+        String dt = normTime(dispatchTime);
+        return (dt != null && at.compareTo(dt) >= 0) ? tripDate : tripDate.plusDays(1);
     }
 
     private String normTime(String t) {
