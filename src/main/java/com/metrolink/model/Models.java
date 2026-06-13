@@ -44,13 +44,11 @@ class Trip {
     private int           busId;
     private int           driverId;
     private int           conductorId;
+    private String        status;
     private LocalTime     dispatchTime;
     private LocalTime     arrivalTime;
-    private int           tripCount;
+    private Integer       tripCount;
     private String        remarks;
-    private boolean       isModified;
-    private Integer       modifiedBy;
-    private LocalDateTime modifiedAt;
     private int           createdBy;
     private LocalDateTime createdAt;
     private LocalDateTime updatedAt;
@@ -71,20 +69,16 @@ class Trip {
     public void setDriverId(int v)             { this.driverId = v; }
     public int getConductorId()                { return conductorId; }
     public void setConductorId(int v)          { this.conductorId = v; }
+    public String getStatus()                  { return status; }
+    public void setStatus(String v)            { this.status = v; }
     public LocalTime getDispatchTime()         { return dispatchTime; }
     public void setDispatchTime(LocalTime v)   { this.dispatchTime = v; }
     public LocalTime getArrivalTime()          { return arrivalTime; }
     public void setArrivalTime(LocalTime v)    { this.arrivalTime = v; }
-    public int getTripCount()                  { return tripCount; }
-    public void setTripCount(int v)            { this.tripCount = v; }
+    public Integer getTripCount()              { return tripCount; }
+    public void setTripCount(Integer v)        { this.tripCount = v; }
     public String getRemarks()                 { return remarks; }
     public void setRemarks(String v)           { this.remarks = v; }
-    public boolean isModified()                { return isModified; }
-    public void setModified(boolean v)         { this.isModified = v; }
-    public Integer getModifiedBy()             { return modifiedBy; }
-    public void setModifiedBy(Integer v)       { this.modifiedBy = v; }
-    public LocalDateTime getModifiedAt()       { return modifiedAt; }
-    public void setModifiedAt(LocalDateTime v) { this.modifiedAt = v; }
     public int getCreatedBy()                  { return createdBy; }
     public void setCreatedBy(int v)            { this.createdBy = v; }
     public LocalDateTime getCreatedAt()        { return createdAt; }
