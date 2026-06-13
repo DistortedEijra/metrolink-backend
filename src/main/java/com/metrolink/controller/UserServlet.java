@@ -40,6 +40,7 @@ public class UserServlet extends HttpServlet {
     static {
         USER_DIFF_LABELS.put("fullName", "Full Name");
         USER_DIFF_LABELS.put("birthdate", "Birthdate");
+        USER_DIFF_LABELS.put("hireDate", "Hire Date");
         USER_DIFF_LABELS.put("address", "Address");
         USER_DIFF_LABELS.put("email", "Email");
         USER_DIFF_LABELS.put("role", "Role");
@@ -78,10 +79,12 @@ public class UserServlet extends HttpServlet {
             String password     = (String) body.get("password");
             String fullName     = (String) body.get("fullName");
             String birthdateStr = (String) body.get("birthdate");
+            String hireDateStr  = (String) body.get("hireDate");
             String address      = (String) body.get("address");
             String email        = (String) body.get("email");
             String role         = (String) body.getOrDefault("role", "STAFF");
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
+            LocalDate hireDate  = (hireDateStr  != null && !hireDateStr.isEmpty())  ? LocalDate.parse(hireDateStr)  : null;
 
             if (username == null || password == null || fullName == null) {
                 ResponseUtil.error(res, 400, "username, password, fullName are required"); return;
@@ -91,7 +94,7 @@ public class UserServlet extends HttpServlet {
             }
 
             String hashed = BCrypt.hashpw(password, BCrypt.gensalt(12));
-            User created = userDAO.create(username, hashed, fullName, birthdate, address, email, role);
+            User created = userDAO.create(username, hashed, fullName, birthdate, address, email, role, hireDate);
             int requesterId = (int) req.getAttribute("userId");
             String requesterName = (String) req.getAttribute("username");
             auditDAO.log(requesterId, requesterName, "CREATE_USER", "USER", created.getId(), "username=" + username);
@@ -117,12 +120,14 @@ public class UserServlet extends HttpServlet {
             Map<String, Object> body = ResponseUtil.parseBody(req);
             String fullName     = (String) body.get("fullName");
             String birthdateStr = (String) body.get("birthdate");
+            String hireDateStr  = (String) body.get("hireDate");
             String address      = (String) body.get("address");
             String email        = (String) body.get("email");
             String role         = (String) body.get("role");
             LocalDate birthdate = (birthdateStr != null && !birthdateStr.isEmpty()) ? LocalDate.parse(birthdateStr) : null;
+            LocalDate hireDate  = (hireDateStr  != null && !hireDateStr.isEmpty())  ? LocalDate.parse(hireDateStr)  : null;
             User before = userDAO.findById(id);
-            userDAO.update(id, fullName, birthdate, address, email, role);
+            userDAO.update(id, fullName, birthdate, address, email, role, hireDate);
             User after = userDAO.findById(id);
             int requesterId = (int) req.getAttribute("userId");
             String requesterName = (String) req.getAttribute("username");
@@ -201,6 +206,7 @@ public class UserServlet extends HttpServlet {
         m.put("address",   u.getAddress());
         m.put("email",     u.getEmail());
         m.put("role",      u.getRole());
+        m.put("hireDate",  u.getHireDate());
         m.put("isActive",  u.isActive());
         m.put("createdAt", u.getCreatedAt());
         return m;
