@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
     password    VARCHAR(255) NOT NULL,          -- bcrypt hash
     full_name   VARCHAR(100) NOT NULL,
     birthdate   DATE,
+    hire_date   DATE,
     address     VARCHAR(255),
     email       VARCHAR(100),
     role        ENUM('ADMIN', 'STAFF') NOT NULL DEFAULT 'STAFF',
@@ -68,21 +69,18 @@ CREATE TABLE IF NOT EXISTS trips (
     bus_id          INT         NOT NULL,
     driver_id       INT         NOT NULL,
     conductor_id    INT         NOT NULL,
+    status          ENUM('SCHEDULED','ONGOING','FINISHED') NOT NULL DEFAULT 'SCHEDULED',
     dispatch_time   TIME        NOT NULL,
     arrival_time    TIME,
     arrival_date    DATE,                                -- calendar date the bus actually arrived (handles overnight trips)
-    trip_count      INT         NOT NULL DEFAULT 0,  -- number of rotations (PITX->Monumento->PITX)
+    trip_count      INT         DEFAULT NULL,            -- number of rotations (PITX->Monumento->PITX); nullable until trip is finished
     remarks         TEXT,
-    is_modified     BOOLEAN     NOT NULL DEFAULT FALSE,  -- flagged if admin edits it
-    modified_by     INT,                                 -- user_id who last edited
-    modified_at     DATETIME,
     created_by      INT         NOT NULL,
     created_at      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (bus_id)      REFERENCES buses(id),
     FOREIGN KEY (driver_id)   REFERENCES employees(id),
     FOREIGN KEY (conductor_id) REFERENCES employees(id),
-    FOREIGN KEY (modified_by) REFERENCES users(id),
     FOREIGN KEY (created_by)  REFERENCES users(id)
 );
 
