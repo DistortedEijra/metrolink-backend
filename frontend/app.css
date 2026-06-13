@@ -476,10 +476,12 @@ body {
 
 /* ══ Badges ════════════════════════════════════════════════ */
 .status-badge { font-size: 0.68rem; font-weight: 700; padding: 0.2rem 0.65rem; border-radius: 20px; display: inline-block; letter-spacing: 0.2px; }
+.status-scheduled   { background: #dbeafe; color: #1e40af; }
+.status-ongoing     { background: #fef3c7; color: #92400e; }
+.status-finished    { background: #d1fae5; color: #065f46; }
 .status-active      { background: #d1fae5; color: #065f46; }
 .status-inactive    { background: #fee2e2; color: #991b1b; }
 .status-maintenance { background: #fef3c7; color: #92400e; }
-.status-modified    { background: #fef3c7; color: #92400e; }
 .status-driver      { background: #dbeafe; color: #1e40af; }
 .status-conductor   { background: #ede9fe; color: #5b21b6; }
 .status-hr          { background: #ede9fe; color: #4c1d95; }
@@ -492,6 +494,7 @@ body {
 .btn-primary { background: var(--primary); border-color: var(--primary); font-weight: 600; letter-spacing: 0.2px; }
 .btn-primary:hover { background: var(--primary-dark); border-color: var(--primary-dark); }
 .btn-icon { padding: 0.25rem 0.55rem; font-size: 0.8rem; border-radius: var(--radius-xs); }
+.btn-icon:disabled { opacity: 0.35; pointer-events: none; }
 
 /* ══ Form ══════════════════════════════════════════════════ */
 .form-label { font-size: 0.78rem; font-weight: 600; color: var(--text-2); margin-bottom: 0.3rem; }
@@ -598,6 +601,32 @@ body {
 .dash-avail-list { max-height: 220px; overflow-y: auto; }
 .dash-chart-wrap { position: relative; height: 230px; }
 .dash-chart-wrap.tall { height: 275px; }
+
+/* ── Calendar grid ── */
+#dashCalGrid { display: flex; flex-direction: column; gap: 0; }
+.dash-cal-header, .dash-cal-body { display: flex; flex-wrap: wrap; }
+.dash-cal-header { border-bottom: 1px solid var(--border); }
+.dash-cal-hdr {
+  width: calc(100% / 7); flex: 0 0 calc(100% / 7);
+  font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.5px;
+  color: var(--text-3); font-weight: 700; padding: 0.3rem 0; text-align: center;
+}
+.dash-cal-cell {
+  width: calc(100% / 7); flex: 0 0 calc(100% / 7);
+  aspect-ratio: 1;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  border: 1px solid var(--border); cursor: pointer; transition: background 0.12s;
+  padding: 2px; overflow: hidden;
+}
+.dash-cal-cell:hover { background: var(--bg-alt); }
+.dash-cal-empty { border-color: transparent; cursor: default; }
+.dash-cal-empty:hover { background: transparent; }
+.dash-cal-today { box-shadow: inset 0 0 0 2px var(--accent); border-radius: 3px; }
+.dash-cal-all    { background: #f0fdf4; }
+.dash-cal-some   { background: #fefce8; }
+.dash-cal-none   { background: #fef2f2; }
+.dash-cal-daynum { font-size: 0.82rem; font-weight: 700; color: var(--text-1); line-height: 1.2; }
+.dash-cal-info   { font-size: 0.58rem; color: var(--text-2); line-height: 1.2; white-space: nowrap; }
 
 /* ══ Finance / Payroll ══════════════════════════════════════ */
 .payroll-paid    { background: #d1fae5; color: #065f46; border-radius: 20px; padding: 0.15rem 0.65rem; font-size: 0.68rem; font-weight: 700; }
