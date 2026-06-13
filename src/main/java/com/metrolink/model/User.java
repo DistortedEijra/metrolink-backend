@@ -11,6 +11,7 @@ public class User {
     private LocalDate     birthdate;
     private String        address;
     private String        email;
+    private LocalDate     hireDate;
     private String        role;       // ADMIN | STAFF
     private boolean       isActive;
     private LocalDateTime createdAt;
@@ -38,6 +39,9 @@ public class User {
 
     public String getEmail()                  { return email; }
     public void setEmail(String v)            { this.email = v; }
+
+    public LocalDate getHireDate()            { return hireDate; }
+    public void setHireDate(LocalDate v)      { this.hireDate = v; }
 
     public String getRole()                   { return role; }
     public void setRole(String v)             { this.role = v; }
