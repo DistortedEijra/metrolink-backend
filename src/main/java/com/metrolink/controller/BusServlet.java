@@ -14,9 +14,9 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * /api/buses         GET (all/active by role), POST (admin)
- * /api/buses/{id}    GET, PUT (admin)
- * /api/buses/{id}/status  PATCH (admin)
+ * /api/buses         GET (all), POST
+ * /api/buses/{id}    GET, PUT
+ * /api/buses/{id}/status  PATCH
  */
 @WebServlet("/api/buses/*")
 public class BusServlet extends HttpServlet {
@@ -40,11 +40,9 @@ public class BusServlet extends HttpServlet {
     protected void doGet(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
             String pathInfo = req.getPathInfo();
-            String role = (String) req.getAttribute("role");
 
             if (pathInfo == null || pathInfo.equals("/")) {
-                var list = "ADMIN".equals(role) ? dao.findAll() : dao.findActive();
-                ResponseUtil.success(res, list);
+                ResponseUtil.success(res, dao.findAll());
             } else {
                 int id = parseId(pathInfo);
                 var bus = dao.findById(id);
@@ -59,7 +57,6 @@ public class BusServlet extends HttpServlet {
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
-            requireAdmin(req);
             Map<String, Object> body = ResponseUtil.parseBody(req);
             String busNumber = (String) body.get("busNumber");
             String plateNo   = (String) body.get("plateNo");
@@ -77,8 +74,6 @@ public class BusServlet extends HttpServlet {
             String username = (String) req.getAttribute("username");
             auditDAO.log(userId, username, "CREATE_BUS", "BUS", (Integer) created.get("id"), "busNumber=" + busNumber);
             ResponseUtil.created(res, created);
-        } catch (SecurityException e) {
-            ResponseUtil.error(res, 403, e.getMessage());
         } catch (Exception e) {
             ResponseUtil.error(res, 500, e.getMessage());
         }
@@ -87,7 +82,6 @@ public class BusServlet extends HttpServlet {
     @Override
     protected void doPut(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
-            requireAdmin(req);
             int id = parseId(req.getPathInfo());
             Map<String, Object> body = ResponseUtil.parseBody(req);
             var before = dao.findById(id);
@@ -102,8 +96,6 @@ public class BusServlet extends HttpServlet {
             String username = (String) req.getAttribute("username");
             auditDAO.log(userId, username, "UPDATE_BUS", "BUS", id, DiffUtil.diff(before, after, BUS_DIFF_LABELS));
             ResponseUtil.success(res, Map.of("updated", true));
-        } catch (SecurityException e) {
-            ResponseUtil.error(res, 403, e.getMessage());
         } catch (Exception e) {
             ResponseUtil.error(res, 500, e.getMessage());
         }
@@ -121,7 +113,6 @@ public class BusServlet extends HttpServlet {
 
     protected void doPatch(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
-            requireAdmin(req);
             String pathInfo = req.getPathInfo();
             if (pathInfo != null && pathInfo.endsWith("/status")) {
                 int id = parseId(pathInfo.replace("/status", ""));
@@ -151,16 +142,9 @@ public class BusServlet extends HttpServlet {
                     ResponseUtil.success(res, Map.of("updated", true, "isActive", isActive));
                 }
             }
-        } catch (SecurityException e) {
-            ResponseUtil.error(res, 403, e.getMessage());
         } catch (Exception e) {
             ResponseUtil.error(res, 500, e.getMessage());
         }
-    }
-
-    private void requireAdmin(HttpServletRequest req) {
-        if (!"ADMIN".equals(req.getAttribute("role")))
-            throw new SecurityException("Admin access required");
     }
 
     private int parseId(String pathInfo) {
