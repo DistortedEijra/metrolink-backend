@@ -10,7 +10,7 @@ public class ReportDAO {
 
     public List<Map<String, Object>> getTripReport(LocalDate from, LocalDate to) throws SQLException {
         String sql =
-            "SELECT t.id AS trip_id, t.trip_date, t.trip_count, t.is_modified, " +
+            "SELECT t.id AS trip_id, t.trip_date, t.trip_count, t.status, " +
             "b.bus_number, d.full_name AS driver_name, co.full_name AS conductor_name, " +
             "i.gross_income, i.driver_income, i.conductor_income, " +
             "i.driver_bond, i.conductor_bond, i.commission, i.net_income, " +
@@ -35,8 +35,8 @@ public class ReportDAO {
                     Map<String, Object> row = new LinkedHashMap<>();
                     row.put("tripId",          rs.getInt("trip_id"));
                     row.put("tripDate",        rs.getDate("trip_date") != null ? rs.getDate("trip_date").toLocalDate() : null);
-                    row.put("tripCount",       rs.getInt("trip_count"));
-                    row.put("isModified",      rs.getBoolean("is_modified"));
+                    row.put("tripCount",       rs.getObject("trip_count") != null ? rs.getInt("trip_count") : null);
+                    row.put("status",          rs.getString("status"));
                     row.put("busNumber",       rs.getString("bus_number"));
                     row.put("driverName",      rs.getString("driver_name"));
                     row.put("conductorName",   rs.getString("conductor_name"));
