@@ -46,9 +46,10 @@ public class UserDAO {
     }
 
     public User create(String username, String hashedPassword, String fullName,
-                       LocalDate birthdate, String address, String email, String role) throws SQLException {
-        String sql = "INSERT INTO users (username, password, full_name, birthdate, address, email, role) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
+                       LocalDate birthdate, String address, String email, String role,
+                       LocalDate hireDate) throws SQLException {
+        String sql = "INSERT INTO users (username, password, full_name, birthdate, address, email, role, hire_date) " +
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, username);
@@ -58,6 +59,7 @@ public class UserDAO {
             ps.setString(5, address);
             ps.setString(6, email);
             ps.setString(7, role);
+            ps.setObject(8, hireDate);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) return findById(keys.getInt(1));
@@ -67,8 +69,9 @@ public class UserDAO {
     }
 
     public boolean update(int id, String fullName, LocalDate birthdate,
-                          String address, String email, String role) throws SQLException {
-        String sql = "UPDATE users SET full_name=?, birthdate=?, address=?, email=?, role=? WHERE id=?";
+                          String address, String email, String role,
+                          LocalDate hireDate) throws SQLException {
+        String sql = "UPDATE users SET full_name=?, birthdate=?, address=?, email=?, role=?, hire_date=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, fullName);
@@ -76,7 +79,8 @@ public class UserDAO {
             ps.setString(3, address);
             ps.setString(4, email);
             ps.setString(5, role);
-            ps.setInt(6, id);
+            ps.setObject(6, hireDate);
+            ps.setInt(7, id);
             return ps.executeUpdate() > 0;
         }
     }
@@ -112,6 +116,8 @@ public class UserDAO {
         u.setAddress(rs.getString("address"));
         u.setEmail(rs.getString("email"));
         u.setRole(rs.getString("role"));
+        Date hd = rs.getDate("hire_date");
+        if (hd != null) u.setHireDate(hd.toLocalDate());
         u.setActive(rs.getBoolean("is_active"));
         Timestamp ca = rs.getTimestamp("created_at");
         if (ca != null) u.setCreatedAt(ca.toLocalDateTime());
