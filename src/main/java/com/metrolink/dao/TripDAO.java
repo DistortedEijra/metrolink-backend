@@ -4,7 +4,6 @@ import com.metrolink.config.DatabaseConfig;
 
 import java.sql.*;
 import java.time.LocalDate;
-import java.time.LocalTime;
 import java.time.format.DateTimeParseException;
 import java.util.*;
 
@@ -72,24 +71,26 @@ public class TripDAO {
 
     public Map<String, Object> create(
             LocalDate tripDate, int busId, int driverId, int conductorId,
-            String dispatchTime, String arrivalTime, LocalDate arrivalDate, int tripCount,
+            String dispatchTime, String arrivalTime, LocalDate arrivalDate, Integer tripCount,
             String remarks, int createdBy) throws SQLException {
 
-        String sql = "INSERT INTO trips (trip_date, bus_id, driver_id, conductor_id, " +
+        String status = arrivalTime != null ? "FINISHED" : "SCHEDULED";
+        String sql = "INSERT INTO trips (trip_date, bus_id, driver_id, conductor_id, status, " +
                      "dispatch_time, arrival_time, arrival_date, trip_count, remarks, created_by) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setDate(1, java.sql.Date.valueOf(tripDate));
             ps.setInt(2, busId);
             ps.setInt(3, driverId);
             ps.setInt(4, conductorId);
-            ps.setString(5, normalizeTime(dispatchTime));
-            ps.setString(6, normalizeTime(arrivalTime));
-            setNullableDate(ps, 7, arrivalDate);
-            ps.setInt(8, tripCount);
-            ps.setString(9, remarks);
-            ps.setInt(10, createdBy);
+            ps.setString(5, status);
+            ps.setString(6, normalizeTime(dispatchTime));
+            ps.setString(7, normalizeTime(arrivalTime));
+            setNullableDate(ps, 8, arrivalDate);
+            setNullableInt(ps, 9, tripCount);
+            ps.setString(10, remarks);
+            ps.setInt(11, createdBy);
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 if (keys.next()) return findById(keys.getInt(1));
@@ -98,13 +99,12 @@ public class TripDAO {
         return null;
     }
 
-    /** Admin-only: edit trip. Automatically flags as modified + logs who/when. */
+    /** Admin-only: edit trip details. Keeps current status unless finishing data provided. */
     public boolean update(int id, LocalDate tripDate, int busId, int driverId,
                           int conductorId, String dispatchTime, String arrivalTime, LocalDate arrivalDate,
-                          int tripCount, String remarks, int modifiedBy) throws SQLException {
+                          Integer tripCount, String remarks) throws SQLException {
         String sql = "UPDATE trips SET trip_date=?, bus_id=?, driver_id=?, conductor_id=?, " +
-                     "dispatch_time=?, arrival_time=?, arrival_date=?, trip_count=?, remarks=?, " +
-                     "is_modified=TRUE, modified_by=?, modified_at=NOW() WHERE id=?";
+                     "dispatch_time=?, arrival_time=?, arrival_date=?, trip_count=?, remarks=? WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setDate(1, java.sql.Date.valueOf(tripDate));
@@ -114,22 +114,32 @@ public class TripDAO {
             ps.setString(5, normalizeTime(dispatchTime));
             ps.setString(6, normalizeTime(arrivalTime));
             setNullableDate(ps, 7, arrivalDate);
-            ps.setInt(8, tripCount);
+            setNullableInt(ps, 8, tripCount);
             ps.setString(9, remarks);
-            ps.setInt(10, modifiedBy);
-            ps.setInt(11, id);
+            ps.setInt(10, id);
             return ps.executeUpdate() > 0;
         }
     }
 
-    /** Staff/admin: update only the arrival time (and resolved arrival date) for a trip */
-    public boolean updateArrival(int id, String arrivalTime, LocalDate arrivalDate) throws SQLException {
-        String sql = "UPDATE trips SET arrival_time=?, arrival_date=? WHERE id=?";
+    /** Staff/admin: start a trip (SCHEDULED -> ONGOING) */
+    public boolean startTrip(int id) throws SQLException {
+        String sql = "UPDATE trips SET status='ONGOING' WHERE id=? AND status='SCHEDULED'";
+        try (Connection c = DatabaseConfig.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setInt(1, id);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /** Staff/admin: finish a trip — set arrival time, arrival date, trip count, and status to FINISHED */
+    public boolean finishTrip(int id, String arrivalTime, LocalDate arrivalDate, int tripCount) throws SQLException {
+        String sql = "UPDATE trips SET arrival_time=?, arrival_date=?, trip_count=?, status='FINISHED' WHERE id=?";
         try (Connection c = DatabaseConfig.getConnection();
              PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, normalizeTime(arrivalTime));
             setNullableDate(ps, 2, arrivalDate);
-            ps.setInt(3, id);
+            ps.setInt(3, tripCount);
+            ps.setInt(4, id);
             return ps.executeUpdate() > 0;
         }
     }
@@ -139,15 +149,9 @@ public class TripDAO {
         else ps.setNull(index, Types.DATE);
     }
 
-    /** Mark trip as modified if its income/expenses change */
-    public void markModified(int id, int modifiedBy) throws SQLException {
-        String sql = "UPDATE trips SET is_modified=TRUE, modified_by=?, modified_at=NOW() WHERE id=?";
-        try (Connection c = DatabaseConfig.getConnection();
-             PreparedStatement ps = c.prepareStatement(sql)) {
-            ps.setInt(1, modifiedBy);
-            ps.setInt(2, id);
-            ps.executeUpdate();
-        }
+    private void setNullableInt(PreparedStatement ps, int index, Integer value) throws SQLException {
+        if (value != null) ps.setInt(index, value);
+        else ps.setNull(index, Types.INTEGER);
     }
 
     /** Keyword search across bus number, driver name, conductor name, remarks */
@@ -179,14 +183,12 @@ public class TripDAO {
         m.put("driverName",    rs.getString("driver_name"));
         m.put("conductorId",   rs.getInt("conductor_id"));
         m.put("conductorName", rs.getString("conductor_name"));
+        m.put("status",        rs.getString("status"));
         m.put("dispatchTime",  rs.getString("dispatch_time"));
         m.put("arrivalTime",   rs.getString("arrival_time"));
         m.put("arrivalDate",   rs.getDate("arrival_date") != null ? rs.getDate("arrival_date").toLocalDate() : null);
-        m.put("tripCount",     rs.getInt("trip_count"));
+        m.put("tripCount",     rs.getObject("trip_count") != null ? rs.getInt("trip_count") : null);
         m.put("remarks",       rs.getString("remarks"));
-        m.put("isModified",    rs.getBoolean("is_modified"));
-        m.put("modifiedBy",    rs.getInt("modified_by"));
-        m.put("modifiedAt",    rs.getTimestamp("modified_at"));
         m.put("createdBy",     rs.getInt("created_by"));
         m.put("createdAt",     rs.getTimestamp("created_at"));
         return m;
