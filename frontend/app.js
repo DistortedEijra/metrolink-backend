@@ -360,7 +360,7 @@ async function doLogin(e) {
     });
     _loginFailCount = 0; // reset on success
     saveSession(data);
-    go('trips');
+    go('dashboard');
   } catch (err) {
     if ((err.message || '').toLowerCase().includes('deactivated')) {
       _showLoginError(`<i class="fas fa-ban me-1"></i>${err.message}`, true);
@@ -443,6 +443,12 @@ async function renderTrips() {
         <select id="tripBusFilter" class="form-select form-select-sm" style="max-width:120px">
           <option value="">All Buses</option>
         </select>
+        <select id="tripStatusFilter" class="form-select form-select-sm" style="max-width:130px">
+          <option value="">All Statuses</option>
+          <option value="SCHEDULED">Scheduled</option>
+          <option value="ONGOING">On Going</option>
+          <option value="FINISHED">Finished</option>
+        </select>
         <input type="date" id="tripDateFilter" class="form-control form-control-sm" style="max-width:150px">
         <button class="btn btn-primary btn-sm" onclick="sendTripFilter()">
           <i class="fas fa-arrow-right me-1"></i>Enter
@@ -498,16 +504,17 @@ function renderTripRows(rows, resetPage = true) {
       <td>${dash(t.conductorName)}</td>
       <td>${t.dispatchTime || '—'}</td>
       <td>${t.arrivalTime ? t.arrivalTime + (t.arrivalDate && t.arrivalDate !== t.tripDate ? ' <span class="badge bg-secondary" title="Arrived on ' + t.arrivalDate + '">+1d</span>' : '') : '—'}</td>
-      <td class="text-center">${t.tripCount}</td>
-      <td>${t.isModified ? '<span class="status-badge status-modified">Modified</span>' : '<span class="status-badge status-active">Original</span>'}</td>
-      <td>
-        <button class="btn btn-outline-primary btn-icon me-1" onclick="openIncomeExp(${t.id},'${t.busNumber}','${t.tripDate}')" title="Income & Expenses">
+      <td class="text-center">${t.tripCount != null ? t.tripCount : '—'}</td>
+      <td>${statusBadge(t.status)}</td>
+      <td style="white-space:nowrap">
+        ${t.status === 'SCHEDULED' ? `<button class="btn btn-outline-warning btn-icon btn-sm me-1" onclick="startTrip(${t.id})" title="Start Trip"><i class="fas fa-play"></i></button>` : ''}
+        <button class="btn btn-outline-primary btn-icon btn-sm me-1" onclick="openIncomeExp(${t.id},'${t.busNumber}','${t.tripDate}')" title="${t.status === 'FINISHED' ? 'Income & Expenses' : 'Finish trip first'}" ${t.status !== 'FINISHED' ? 'disabled' : ''}>
           <i class="fas fa-dollar-sign"></i>
         </button>
-        <button class="btn btn-outline-success btn-icon me-1" onclick="openArrivalModal(${t.id},'${t.arrivalTime||''}','${t.arrivalDate||''}','${t.tripDate}')" title="Set Arrival Time">
+        ${t.status !== 'FINISHED' ? `<button class="btn btn-outline-success btn-icon btn-sm me-1" onclick="openArrivalModal(${t.id},'${t.arrivalTime||''}','${t.arrivalDate||''}','${t.tripDate}',${t.tripCount != null ? t.tripCount : 'null'})" title="Set Arrival Time">
           <i class="fas fa-clock"></i>
-        </button>
-        ${isAdmin() ? `<button class="btn btn-outline-secondary btn-icon" onclick="openEditTrip(${t.id})" title="Edit Trip"><i class="fas fa-edit"></i></button>` : ''}
+        </button>` : ''}
+        ${isAdmin() ? `<button class="btn btn-outline-secondary btn-icon btn-sm" onclick="openEditTrip(${t.id})" title="Edit Trip"><i class="fas fa-edit"></i></button>` : ''}
       </td>
     </tr>`).join('');
   renderPager('tripPager', rows.length, _tripPage, 'changeTripPage');
@@ -536,6 +543,7 @@ function sendTripFilter(resetPage = true) {
   const conductorId = document.getElementById('tripConductorFilter')?.value;
   const busNum      = document.getElementById('tripBusFilter')?.value;
   const dateVal     = document.getElementById('tripDateFilter')?.value;
+  const statusVal   = document.getElementById('tripStatusFilter')?.value;
 
   let filtered = tripsList;
 
@@ -553,6 +561,9 @@ function sendTripFilter(resetPage = true) {
     const conductor = tripConductors.find(c => c.id == conductorId);
     if (conductor) filtered = filtered.filter(t => t.conductorName === conductor.fullName);
   }
+  if (statusVal) {
+    filtered = filtered.filter(t => t.status === statusVal);
+  }
 
   renderTripRows(filtered, resetPage);
 }
@@ -560,6 +571,24 @@ function sendTripFilter(resetPage = true) {
 async function refreshTripTable() {
   tripsList = await api('/trips');
   sendTripFilter(false);
+}
+
+function statusBadge(s) {
+  if (s === 'SCHEDULED') return '<span class="status-badge status-scheduled">Scheduled</span>';
+  if (s === 'ONGOING')   return '<span class="status-badge status-ongoing">On Going</span>';
+  if (s === 'FINISHED')  return '<span class="status-badge status-finished">Finished</span>';
+  return '<span class="status-badge status-active">' + (s || 'Unknown') + '</span>';
+}
+
+async function startTrip(id) {
+  if (!await confirmModal('Start Trip', 'Start this trip now? The status will change to On Going.', 'Start Trip', 'btn-warning')) return;
+  try {
+    await api('/trips/' + id + '/start', 'POST');
+    toast('Trip started!');
+    await refreshTripTable();
+  } catch (e) {
+    toast('Failed to start trip: ' + (e.message || e), 'danger');
+  }
 }
 
 function getTripModal() {
@@ -584,8 +613,20 @@ function getTripModal() {
                 <select id="tBus" class="form-select" required></select>
               </div>
               <div class="col-md-4">
-                <label class="form-label">Trip Count *</label>
-                <input type="number" id="tCount" class="form-control" min="1" max="10" value="4" required>
+                <label class="form-label">Trip Count</label>
+                <select id="tCount" class="form-select">
+                  <option value="" selected>— (not set) —</option>
+                  <option value="1">1</option>
+                  <option value="2">2</option>
+                  <option value="3">3</option>
+                  <option value="4">4</option>
+                  <option value="5">5</option>
+                  <option value="6">6</option>
+                  <option value="7">7</option>
+                  <option value="8">8</option>
+                  <option value="9">9</option>
+                  <option value="10">10</option>
+                </select>
               </div>
               <div class="col-md-6">
                 <label class="form-label">Driver *</label>
@@ -595,13 +636,17 @@ function getTripModal() {
                 <label class="form-label">Conductor *</label>
                 <select id="tConductor" class="form-select" required></select>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-4">
                 <label class="form-label">Dispatch Time *</label>
                 <input type="time" id="tDispatch" class="form-control" required>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-4">
                 <label class="form-label">Arrival Time</label>
                 <input type="time" id="tArrival" class="form-control">
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Arrival Date</label>
+                <input type="date" id="tArrivalDate" class="form-control">
               </div>
               <div class="col-12">
                 <label class="form-label">Remarks</label>
@@ -630,11 +675,12 @@ function openAddTrip() {
   tripTabIdx = 0; savedTripId = null; tripModalMode = 'add';
   document.getElementById('tripModalTitle').innerHTML = '<i class="fas fa-plus me-2"></i>Add Trip';
   document.getElementById('tripId').value = '';
-  ['tDate','tDispatch','tArrival','tRemarks'].forEach(id => {
+  ['tDate','tDispatch','tArrival','tArrivalDate','tRemarks','tCount'].forEach(id => {
     const el = document.getElementById(id);
-    if (el) el.value = el.type === 'number' ? '0' : '';
+    if (el) el.value = '';
   });
   document.getElementById('tDate').value = new Date().toISOString().split('T')[0];
+  document.getElementById('tArrivalDate').value = new Date().toISOString().split('T')[0];
   populateTripDropdowns();
   refreshAvailableStaff();
   new bootstrap.Modal(document.getElementById('tripModal')).show();
@@ -646,9 +692,10 @@ async function openEditTrip(id) {
   const trip = await api(`/trips/${id}`);
   document.getElementById('tripId').value = id;
   document.getElementById('tDate').value = trip.tripDate;
-  document.getElementById('tCount').value = trip.tripCount;
+  document.getElementById('tCount').value = trip.tripCount != null ? trip.tripCount : '';
   document.getElementById('tDispatch').value = (trip.dispatchTime || '').substring(0, 5);
   document.getElementById('tArrival').value  = (trip.arrivalTime  || '').substring(0, 5);
+  document.getElementById('tArrivalDate').value = trip.arrivalDate || '';
   document.getElementById('tRemarks').value = trip.remarks || '';
   populateTripDropdowns(trip.busId, trip.driverId, trip.conductorId);
   await refreshAvailableStaff();
@@ -707,19 +754,26 @@ async function refreshAvailableStaff() {
 }
 
 async function saveTripDetails() {
+  const tCountEl = document.getElementById('tCount');
+  const tArrivalEl = document.getElementById('tArrival');
+  const tArrivalDateEl = document.getElementById('tArrivalDate');
   const body = {
     tripDate:     document.getElementById('tDate').value,
     busId:        +document.getElementById('tBus').value,
     driverId:     +document.getElementById('tDriver').value,
     conductorId:  +document.getElementById('tConductor').value,
     dispatchTime: document.getElementById('tDispatch').value + ':00',
-    arrivalTime:  (document.getElementById('tArrival').value || '00:00') + ':00',
-    tripCount:    +document.getElementById('tCount').value,
+    arrivalTime:  tArrivalEl.value ? tArrivalEl.value + ':00' : null,
+    arrivalDate:  tArrivalDateEl.value || null,
+    tripCount:    tCountEl.value ? +tCountEl.value : null,
     remarks:      document.getElementById('tRemarks').value
   };
 
   if (!body.tripDate || !body.busId || !body.driverId || !body.conductorId || !body.dispatchTime) {
     toast('Please fill all required fields', 'warning'); return false;
+  }
+  if ((body.arrivalTime && !body.arrivalDate) || (!body.arrivalTime && body.arrivalDate)) {
+    toast('Arrival time and arrival date must both be set together', 'warning'); return false;
   }
 
   if (tripModalMode === 'edit' && savedTripId) {
@@ -974,11 +1028,25 @@ function getArrivalModal() {
         <div class="modal-body">
           <input type="hidden" id="arrivalTripId">
           <input type="hidden" id="arrivalTripDate">
-          <label class="form-label fw-semibold">Arrival Time</label>
+          <label class="form-label fw-semibold">Arrival Time *</label>
           <input type="time" id="arrivalTimeInput" class="form-control mb-2" oninput="suggestArrivalDate()">
-          <label class="form-label fw-semibold">Arrival Date</label>
-          <input type="date" id="arrivalDateInput" class="form-control">
-          <div class="form-text text-muted">Leave time blank to clear the arrival record. Date defaults to the trip date — change it for overnight trips.</div>
+          <label class="form-label fw-semibold">Arrival Date *</label>
+          <input type="date" id="arrivalDateInput" class="form-control mb-2" required>
+          <label class="form-label fw-semibold">Trip Count *</label>
+          <select id="arrivalTripCount" class="form-select" required>
+            <option value="">Select trip count...</option>
+            <option value="1">1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+            <option value="5">5</option>
+            <option value="6">6</option>
+            <option value="7">7</option>
+            <option value="8">8</option>
+            <option value="9">9</option>
+            <option value="10">10</option>
+          </select>
+          <div class="form-text text-muted">Date defaults to the trip date — change it for overnight trips.</div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
@@ -1004,12 +1072,13 @@ function suggestArrivalDate() {
   document.getElementById('arrivalDateInput').value = time ? tripDate : '';
 }
 
-function openArrivalModal(tripId, currentArrival, currentArrivalDate, tripDate) {
+function openArrivalModal(tripId, currentArrival, currentArrivalDate, tripDate, currentTripCount) {
   document.getElementById('arrivalTripId').value = tripId;
   document.getElementById('arrivalTripDate').value = tripDate;
   document.getElementById('arrivalTimeInput').value = currentArrival ? currentArrival.substring(0, 5) : '';
   document.getElementById('arrivalDateInput').value = currentArrivalDate ||
     (currentArrival ? tripDate : '');
+  document.getElementById('arrivalTripCount').value = currentTripCount != null ? currentTripCount : '';
   new bootstrap.Modal(document.getElementById('arrivalModal')).show();
 }
 
@@ -1018,17 +1087,22 @@ async function saveArrivalTime() {
   const tripId = document.getElementById('arrivalTripId').value;
   const timeVal = document.getElementById('arrivalTimeInput').value;
   const dateVal = document.getElementById('arrivalDateInput').value;
+  const tripCountVal = document.getElementById('arrivalTripCount').value;
+  if (!timeVal) { toast('Arrival time is required', 'warning'); return; }
+  if (!dateVal) { toast('Arrival date is required', 'warning'); return; }
+  if (!tripCountVal) { toast('Trip count is required', 'warning'); return; }
   try {
     btn.disabled = true;
     await api(`/trips/${tripId}`, 'PATCH', {
-      arrivalTime: timeVal ? timeVal + ':00' : null,
-      arrivalDate: timeVal ? (dateVal || null) : null
+      arrivalTime: timeVal + ':00',
+      arrivalDate: dateVal || null,
+      tripCount: +tripCountVal
     });
     bootstrap.Modal.getInstance(document.getElementById('arrivalModal')).hide();
     await refreshTripTable();
-    toast(timeVal ? 'Arrival time saved!' : 'Arrival time cleared');
+    toast('Trip finished!');
   } catch (e) {
-    toast('Failed to save arrival time: ' + (e.message || e), 'danger');
+    toast('Failed to save: ' + (e.message || e), 'danger');
   } finally {
     btn.disabled = false;
   }
@@ -1313,14 +1387,14 @@ async function renderBuses() {
     <div class="page-header">
       <div><h4><i class="fas fa-bus me-2"></i>Bus Management</h4>
         <div class="subtitle">Manage the bus fleet</div></div>
-      ${isAdmin() ? `<button class="btn btn-primary btn-sm" onclick="openAddBus()"><i class="fas fa-plus me-1"></i>Add Bus</button>` : ''}
+      <button class="btn btn-primary btn-sm" onclick="openAddBus()"><i class="fas fa-plus me-1"></i>Add Bus</button>
     </div>
     <div class="content-card">
       <div class="table-responsive">
         <table class="table table-hover mb-0">
           <thead><tr><th>Bus Number</th><th>Plate No.</th><th>Model</th>
             <th>Franchise (CPC) Expiry</th><th>LTO Reg. Expiry</th><th>Insurance Expiry</th><th>Status</th>
-            ${isAdmin() ? '<th>Actions</th>' : ''}</tr></thead>
+            <th>Actions</th></tr></thead>
           <tbody id="busBody"><tr><td colspan="8" class="table-empty">
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
         </table>
@@ -1357,12 +1431,12 @@ function renderBusRows(rows, resetPage = true) {
       <td>${expiryCell(b.registrationExpiry)}</td>
       <td>${expiryCell(b.insuranceExpiry)}</td>
       <td><span class="status-badge ${{ACTIVE:'status-active',INACTIVE:'status-inactive',MAINTENANCE:'status-maintenance'}[b.status]||'status-inactive'}">${{ACTIVE:'Active',INACTIVE:'Inactive',MAINTENANCE:'Under Maintenance'}[b.status]||b.status}</span></td>
-      ${isAdmin() ? `<td class="d-flex gap-1 flex-wrap">
+      <td class="d-flex gap-1 flex-wrap">
         <button class="btn btn-outline-primary btn-icon" onclick="openEditBus(${b.id})" title="Edit"><i class="fas fa-edit"></i></button>
         ${b.status !== 'ACTIVE'      ? `<button class="btn btn-outline-success btn-icon" onclick="setBusStatus(${b.id},'ACTIVE')" title="Activate"><i class="fas fa-check"></i></button>` : ''}
         ${b.status !== 'MAINTENANCE' ? `<button class="btn btn-outline-warning btn-icon" onclick="setBusStatus(${b.id},'MAINTENANCE')" title="Set Maintenance"><i class="fas fa-wrench"></i></button>` : ''}
         ${b.status !== 'INACTIVE'    ? `<button class="btn btn-outline-danger btn-icon" onclick="setBusStatus(${b.id},'INACTIVE')" title="Deactivate"><i class="fas fa-ban"></i></button>` : ''}
-      </td>` : ''}
+      </td>
     </tr>`).join('');
   renderPager('busPager', rows.length, _busPage, 'changeBusPage');
 }
@@ -1591,7 +1665,7 @@ function renderReportRows() {
                 <td>${peso(r.grossIncome)}</td><td>${peso(r.netIncome)}</td>
                 <td>${peso(r.totalExpenses)}</td>
                 <td class="${(r.netProfit||0)<0?'text-danger fw-bold':''}">${peso(r.netProfit)}</td>
-                <td>${r.isModified?'<span class="status-badge status-modified">Yes</span>':'—'}</td>
+                <td>${statusBadge(r.status)}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -1602,8 +1676,8 @@ function renderReportRows() {
     html = `
       <div class="alert alert-warning py-2 px-3 mb-2" style="font-size:0.8rem">
         <i class="fas fa-exclamation-triangle me-1"></i>Showing trips where Gross Income < ₱13,000 (below quota)
-      </div>
-      <div class="content-card">
+    </div>
+    <div class="content-card">
         <div class="table-responsive">
           <table class="table table-hover mb-0">
             <thead><tr><th>Date</th><th>Bus</th><th>Driver</th><th>Conductor</th><th>Gross Income</th><th>Net Income</th></tr></thead>
@@ -1755,11 +1829,11 @@ async function downloadReportPDF() {
         pdfPeso(r.netIncome),
         pdfPeso(r.totalExpenses),
         pdfPeso(r.netProfit),
-        r.isModified ? 'Yes' : '—'
+        r.status || '—'
       ]);
       doc.autoTable({
         startY: y,
-        head: [['Date', 'Bus', 'Driver', 'Conductor', 'Trips', 'Gross', 'Net Income', 'Expenses', 'Net Profit', 'Mod']],
+        head: [['Date', 'Bus', 'Driver', 'Conductor', 'Trips', 'Gross', 'Net Income', 'Expenses', 'Net Profit', 'Status']],
         body: tripBody,
         theme: 'striped',
         margin: { left: 14, right: 14 },
@@ -2051,29 +2125,60 @@ async function renderHelp() {
 // USERS (Admin only)
 // ══════════════════════════════════════════════════════════
 async function renderUsers() {
-  if (!isAdmin()) { go('trips'); return; }
+  if (!isAdmin()) { go('dashboard'); return; }
   shell('users', `
     <div class="page-header">
       <div><h4><i class="fas fa-user-cog me-2"></i>Staff Accounts</h4>
         <div class="subtitle">Manage system user accounts</div></div>
       <button class="btn btn-primary btn-sm" onclick="openAddUser()"><i class="fas fa-plus me-1"></i>Register Staff</button>
     </div>
+    <div class="d-flex gap-2 mb-3 align-items-center flex-wrap">
+      <select id="userRoleFilter" class="form-select form-select-sm" style="max-width:130px">
+        <option value="">All Roles</option>
+        <option value="ADMIN">Admin</option>
+        <option value="STAFF">Staff</option>
+      </select>
+      <select id="userHireDateFilter" class="form-select form-select-sm" style="max-width:150px" onchange="toggleUserDateRangeInputs()">
+        <option value="">All Hire Dates</option>
+        <option value="missing">Missing</option>
+        <option value="this-week">This Week</option>
+        <option value="this-month">This Month</option>
+        <option value="last-month">Last Month</option>
+        <option value="this-year">This Year</option>
+        <option value="custom">Custom Range</option>
+      </select>
+      <input type="date" id="userHireDateFrom" class="form-control form-control-sm" style="max-width:145px;display:none">
+      <input type="date" id="userHireDateTo" class="form-control form-control-sm" style="max-width:145px;display:none">
+      <select id="userStatusFilter" class="form-select form-select-sm" style="max-width:130px">
+        <option value="">All Status</option>
+        <option value="active">Active</option>
+        <option value="inactive">Inactive</option>
+      </select>
+      <button class="btn btn-primary btn-sm" onclick="applyUserFilters()">
+        <i class="fas fa-filter me-1"></i>Apply
+      </button>
+    </div>
+    <div id="userHireDateWarning" class="alert alert-warning d-none mb-3 py-2 px-3" style="font-size:0.85rem" role="alert">
+      <i class="fas fa-exclamation-triangle me-1"></i><span id="userHireDateWarningMsg"></span>
+    </div>
     <div class="content-card">
       <div class="table-responsive">
         <table class="table table-hover mb-0">
-          <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Status</th><th>Actions</th></tr></thead>
-          <tbody id="userBody"><tr><td colspan="5" class="table-empty">
+          <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th>Hire Date</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="userBody"><tr><td colspan="6" class="table-empty">
             <div class="spinner-border spinner-border-sm text-muted"></div></td></tr></tbody>
         </table>
       </div>
       <div id="userPager"></div>
     </div>
-    ${getUserModal()}`);
+    ${getUserModal()}
+    ${getMissingHireDateModal()}`);
 
   try {
     const users = await api('/users');
     window._users = users;
     renderUserRows(users);
+    showMissingHireDateNotification(users);
   } catch { renderUserRows([]); }
 }
 
@@ -2084,7 +2189,7 @@ function renderUserRows(rows, resetPage = true) {
   if (!tbody) return;
   if (resetPage) _userPage = 1;
   if (!rows.length) {
-    tbody.innerHTML = `<tr><td colspan="5" class="table-empty"><i class="fas fa-user-cog"></i>No users found</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="table-empty"><i class="fas fa-user-cog"></i>No users found</td></tr>`;
     document.getElementById('userPager').innerHTML = '';
     return;
   }
@@ -2095,6 +2200,7 @@ function renderUserRows(rows, resetPage = true) {
       <td><code>${u.username}</code></td>
       <td><strong>${u.fullName}</strong></td>
       <td><span class="status-badge ${u.role === 'ADMIN' ? 'status-admin' : 'status-staff'}">${u.role}</span></td>
+      <td>${u.hireDate ? u.hireDate : '<span class="text-danger fw-bold">Not set</span>'}</td>
       <td><span class="status-badge ${u.isActive ? 'status-active' : 'status-inactive'}">${u.isActive ? 'Active' : 'Inactive'}</span></td>
       <td>
         <button class="btn btn-outline-primary btn-icon me-1" onclick="openEditUser(${u.id})" title="Edit"><i class="fas fa-edit"></i></button>
@@ -2144,7 +2250,11 @@ function getUserModal() {
               <label class="form-label">Birthdate</label>
               <input type="date" id="uBirthdate" class="form-control">
             </div>
-            <div class="col-md-6">
+            <div class="col-md-4">
+              <label class="form-label">Hire Date *</label>
+              <input type="date" id="uHireDate" class="form-control" required>
+            </div>
+            <div class="col-md-4">
               <label class="form-label">Email</label>
               <input type="email" id="uEmail" class="form-control" placeholder="email@example.com">
             </div>
@@ -2191,7 +2301,7 @@ function openAddUser() {
   document.getElementById('userModalTitle').textContent = 'Register Staff';
   document.getElementById('userId').value = '';
   document.getElementById('uPassRow').style.display = '';
-  ['uUsername','uFullName','uPassword','uBirthdate','uEmail','uAddress'].forEach(id => document.getElementById(id).value = '');
+  ['uUsername','uFullName','uPassword','uBirthdate','uHireDate','uEmail','uAddress'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('uRole').value = 'STAFF';
   document.getElementById('uUsername').disabled = false;
   new bootstrap.Modal(document.getElementById('userModal')).show();
@@ -2206,11 +2316,147 @@ function openEditUser(id) {
   document.getElementById('uUsername').disabled = true;
   document.getElementById('uFullName').value = u.fullName;
   document.getElementById('uBirthdate').value = u.birthdate || '';
+  document.getElementById('uHireDate').value = u.hireDate || '';
   document.getElementById('uEmail').value = u.email || '';
   document.getElementById('uAddress').value = u.address || '';
   document.getElementById('uRole').value = u.role;
   document.getElementById('uPassRow').style.display = 'none';
   new bootstrap.Modal(document.getElementById('userModal')).show();
+}
+
+function getMissingHireDateModal() {
+  return `
+  <div class="modal fade" id="missingHireDateModal" tabindex="-1">
+    <div class="modal-dialog modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header" style="background:#fff3cd;border-bottom:1px solid #ffc107">
+          <h5 class="modal-title"><i class="fas fa-exclamation-triangle text-warning me-2"></i>Missing Hire Dates</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="missingHireDateBody">
+          <p class="small text-muted mb-2">The following staff accounts do not have a hire date set. Please update their records.</p>
+          <table class="table table-sm mb-0">
+            <thead><tr><th>Username</th><th>Full Name</th><th>Role</th><th></th></tr></thead>
+            <tbody id="missingHireDateList"></tbody>
+          </table>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function showMissingHireDateNotification(users) {
+  const missing = users.filter(u => !u.hireDate);
+  const warnEl = document.getElementById('userHireDateWarning');
+  const warnMsg = document.getElementById('userHireDateWarningMsg');
+
+  if (!missing.length) {
+    if (warnEl) warnEl.classList.add('d-none');
+    return;
+  }
+
+  // Persistent warning section
+  if (warnEl && warnMsg) {
+    warnMsg.innerHTML = `<strong>${missing.length}</strong> staff member${missing.length > 1 ? 's' : ''} ${missing.length > 1 ? 'do' : 'does'} not have a hire date set. <a href="#" onclick="showMissingHireDateModal()" class="alert-link">View details</a>`;
+    warnEl.classList.remove('d-none');
+  }
+
+  // Populate modal list
+  const list = document.getElementById('missingHireDateList');
+  if (list) {
+    list.innerHTML = missing.map(u => `
+      <tr>
+        <td><code>${u.username}</code></td>
+        <td><strong>${u.fullName}</strong></td>
+        <td><span class="status-badge ${u.role === 'ADMIN' ? 'status-admin' : 'status-staff'}">${u.role}</span></td>
+        <td class="text-end">
+          <button class="btn btn-outline-primary btn-sm" onclick="openEditUser(${u.id});bootstrap.Modal.getInstance(document.getElementById('missingHireDateModal')).hide()">
+            <i class="fas fa-edit me-1"></i>Set Hire Date
+          </button>
+        </td>
+      </tr>`).join('');
+  }
+
+  // Show modal on page load
+  const modalEl = document.getElementById('missingHireDateModal');
+  if (modalEl) {
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+}
+
+function showMissingHireDateModal() {
+  const modalEl = document.getElementById('missingHireDateModal');
+  if (modalEl) new bootstrap.Modal(modalEl).show();
+}
+
+// ── User filter helpers ──────────────────────────────────────
+function toggleUserDateRangeInputs() {
+  const val = document.getElementById('userHireDateFilter')?.value;
+  const fromEl = document.getElementById('userHireDateFrom');
+  const toEl = document.getElementById('userHireDateTo');
+  if (!fromEl || !toEl) return;
+  const show = val === 'custom';
+  fromEl.style.display = show ? '' : 'none';
+  toEl.style.display = show ? '' : 'none';
+}
+
+function getWeekRange() {
+  const now = new Date();
+  const day = now.getDay();
+  const diff = day === 0 ? 6 : day - 1; // Monday = 0
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - diff);
+  const sunday = new Date(monday);
+  sunday.setDate(monday.getDate() + 6);
+  return {
+    from: monday.toISOString().split('T')[0],
+    to: sunday.toISOString().split('T')[0]
+  };
+}
+
+function applyUserFilters() {
+  const roleVal    = document.getElementById('userRoleFilter')?.value;
+  const hdVal      = document.getElementById('userHireDateFilter')?.value;
+  const hdFrom     = document.getElementById('userHireDateFrom')?.value;
+  const hdTo       = document.getElementById('userHireDateTo')?.value;
+  const statusVal  = document.getElementById('userStatusFilter')?.value;
+
+  let filtered = (window._users || []).filter(u => {
+    if (roleVal && u.role !== roleVal) return false;
+
+    if (statusVal === 'active' && !u.isActive) return false;
+    if (statusVal === 'inactive' && u.isActive) return false;
+
+    if (hdVal) {
+      if (hdVal === 'missing') { if (u.hireDate) return false; }
+      else if (hdVal === 'custom') {
+        if (!u.hireDate) return false;
+        if (hdFrom && u.hireDate < hdFrom) return false;
+        if (hdTo && u.hireDate > hdTo) return false;
+      } else {
+        if (!u.hireDate) return false;
+        const range = getWeekRange();
+        const today = new Date().toISOString().split('T')[0];
+        const thisMonth = today.slice(0, 7);
+        const prev = new Date();
+        prev.setMonth(prev.getMonth() - 1);
+        const lastMonth = prev.toISOString().split('T')[0].slice(0, 7);
+        const thisYear = today.slice(0, 4);
+        if (hdVal === 'this-week' && (u.hireDate < range.from || u.hireDate > range.to)) return false;
+        if (hdVal === 'this-month' && u.hireDate.slice(0, 7) !== thisMonth) return false;
+        if (hdVal === 'last-month' && u.hireDate.slice(0, 7) !== lastMonth) return false;
+        if (hdVal === 'this-year' && u.hireDate.slice(0, 4) !== thisYear) return false;
+      }
+    }
+
+    return true;
+  });
+
+  renderUserRows(filtered);
 }
 
 async function saveUser() {
@@ -2224,6 +2470,7 @@ async function saveUser() {
       await api(`/users/${id}`, 'PUT', {
         fullName:  document.getElementById('uFullName').value.trim(),
         birthdate: document.getElementById('uBirthdate').value || null,
+        hireDate:  document.getElementById('uHireDate').value || null,
         address:   document.getElementById('uAddress').value.trim() || null,
         email:     document.getElementById('uEmail').value.trim() || null,
         role:      document.getElementById('uRole').value
@@ -2235,6 +2482,7 @@ async function saveUser() {
         password:  document.getElementById('uPassword').value,
         fullName:  document.getElementById('uFullName').value.trim(),
         birthdate: document.getElementById('uBirthdate').value || null,
+        hireDate:  document.getElementById('uHireDate').value || null,
         address:   document.getElementById('uAddress').value.trim() || null,
         email:     document.getElementById('uEmail').value.trim() || null,
         role:      document.getElementById('uRole').value
@@ -2285,7 +2533,7 @@ async function toggleUser(id, active) {
 // BACKUP (Admin only)
 // ══════════════════════════════════════════════════════════
 async function renderBackup() {
-  if (!isAdmin()) { go('trips'); return; }
+  if (!isAdmin()) { go('dashboard'); return; }
   shell('backup', `
     <div class="page-header">
       <div><h4><i class="fas fa-database me-2"></i>Database Backup</h4>
@@ -2374,7 +2622,7 @@ async function doBackup(btn) {
 // AUDIT LOG (Admin only)
 // ══════════════════════════════════════════════════════════
 async function renderAudit() {
-  if (!isAdmin()) { go('trips'); return; }
+  if (!isAdmin()) { go('dashboard'); return; }
   const today = new Date().toISOString().split('T')[0];
   const thirtyAgo = new Date(Date.now() - 30 * 864e5).toISOString().split('T')[0];
   shell('audit', `
@@ -2462,6 +2710,8 @@ function changeAuditPage(p) {
 // DASHBOARD
 // ══════════════════════════════════════════════════════════
 let _dashChart = null, _dashChart2 = null, _dashChart3 = null;
+let _dashCalYear, _dashCalMonth;
+let _dashCalTrips = [], _dashCalEmployees = [];
 
 async function renderDashboard() {
   const user        = getUser();
@@ -2533,6 +2783,22 @@ async function renderDashboard() {
       </div>
     </div>
 
+    <!-- Row 1.75: Monthly Operator Availability Calendar -->
+    <div class="row g-3 mb-3">
+      <div class="col-12">
+        <div class="content-card p-3">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <div class="dash-section-label mb-0"><i class="fas fa-calendar-alt me-1"></i>Operator Availability — <span id="dashCalMonth"></span></div>
+            <div>
+              <button class="btn btn-outline-secondary btn-sm me-1" onclick="dashCalNav(-1)" title="Previous month"><i class="fas fa-chevron-left"></i></button>
+              <button class="btn btn-outline-secondary btn-sm" onclick="dashCalNav(1)" title="Next month"><i class="fas fa-chevron-right"></i></button>
+            </div>
+          </div>
+          <div id="dashCalGrid" style="min-height:80px"><div class="text-muted small">Loading...</div></div>
+        </div>
+      </div>
+    </div>
+
     <!-- Row 2: Trip Volume by Day of Week + Payroll Breakdown -->
     <div class="row g-3 mb-3">
       <div class="col-md-6">
@@ -2541,19 +2807,33 @@ async function renderDashboard() {
           <div class="dash-chart-wrap"><canvas id="dashChart2"></canvas></div>
         </div>
       </div>
+      ${isAdmin() ? `
       <div class="col-md-6">
         <div class="content-card p-3">
           <div class="dash-section-label">Payroll Cost Breakdown (MTD)</div>
           <div class="dash-chart-wrap" id="dashChart3Wrap"><canvas id="dashChart3"></canvas></div>
         </div>
-      </div>
+      </div>` : ''}
     </div>
 
     ${isAdmin() ? `
     <div class="content-card p-3 mb-3">
       <div class="dash-section-label">Recent Activity</div>
-      <div id="dashActivity"><div class="text-muted small">Loading…</div></div>
+      <div id="dashActivity"><div class="text-muted small">Loading...</div></div>
     </div>` : ''}
+
+  <!-- Day-click modal for calendar -->
+  <div class="modal fade" id="dashCalModal" tabindex="-1">
+    <div class="modal-dialog">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h6 class="modal-title"><i class="fas fa-users me-1"></i>Available Operators — <span id="dashCalModalDate"></span></h6>
+          <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+        </div>
+        <div class="modal-body" id="dashCalModalBody"></div>
+      </div>
+    </div>
+  </div>
   `);
 
   [_dashChart, _dashChart2, _dashChart3].forEach(c => { if (c) c.destroy(); });
@@ -2575,6 +2855,11 @@ async function renderDashboard() {
     document.getElementById('dTrips').textContent  = summary.totalTrips ?? '0';
     document.getElementById('dExp').textContent    = peso(summary.totalExpenses);
     document.getElementById('dProfit').textContent = peso(summary.totalNetProfit);
+
+    // ── Calendar: operator availability this month ──
+    const now = new Date();
+    if (_dashCalYear == null) { _dashCalYear = now.getFullYear(); _dashCalMonth = now.getMonth(); }
+    dashCalFetch();
 
     // ── Chart 1: Income vs Expenses — last 14 days ──
     const byDate14 = {};
@@ -2782,6 +3067,134 @@ async function renderDashboard() {
   }
 }
 
+// ── Calendar: Operator availability ────────────────────────
+async function dashCalFetch() {
+  try {
+    const monthStart = `${_dashCalYear}-${String(_dashCalMonth + 1).padStart(2, '0')}-01`;
+    const lastDay = new Date(_dashCalYear, _dashCalMonth + 1, 0).getDate();
+    const monthEnd = `${_dashCalYear}-${String(_dashCalMonth + 1).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
+    _dashCalTrips = await api(`/trips/range?from=${monthStart}&to=${monthEnd}`);
+    _dashCalEmployees = await api('/employees');
+    dashCalRender();
+  } catch {
+    document.getElementById('dashCalGrid').innerHTML = '<div class="text-muted small">Failed to load calendar data.</div>';
+  }
+}
+
+function dashCalNav(delta) {
+  _dashCalMonth += delta;
+  if (_dashCalMonth < 0) { _dashCalMonth = 11; _dashCalYear--; }
+  if (_dashCalMonth > 11) { _dashCalMonth = 0;  _dashCalYear++; }
+  document.getElementById('dashCalGrid').innerHTML = '<div class="text-muted small">Loading...</div>';
+  dashCalFetch();
+}
+
+function dashCalRender() {
+  const grid = document.getElementById('dashCalGrid');
+  if (!grid) return;
+
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  document.getElementById('dashCalMonth').textContent = `${monthNames[_dashCalMonth]} ${_dashCalYear}`;
+
+  const drivers   = _dashCalEmployees.filter(e => e.position === 'DRIVER'   && e.isActive);
+  const conductors = _dashCalEmployees.filter(e => e.position === 'CONDUCTOR' && e.isActive);
+
+  const firstDay = new Date(_dashCalYear, _dashCalMonth, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(_dashCalYear, _dashCalMonth + 1, 0).getDate();
+  const todayStr = `${_dashCalYear}-${String(_dashCalMonth + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
+
+  // Header row
+  let h = '<div class="dash-cal-header">';
+  ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => { h += `<div class="dash-cal-hdr">${d}</div>`; });
+  h += '</div>';
+
+  // Body
+  let b = '<div class="dash-cal-body">';
+  for (let i = 0; i < firstDay; i++) b += '<div class="dash-cal-cell dash-cal-empty"></div>';
+
+  let day = 1;
+  while (day <= daysInMonth) {
+    const dateStr = `${_dashCalYear}-${String(_dashCalMonth + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    const isToday = dateStr === todayStr;
+
+    const dayTrips = _dashCalTrips.filter(t => t.tripDate === dateStr);
+    const busyDriverIds = new Set(dayTrips.map(t => t.driverId));
+    const busyConductorIds = new Set(dayTrips.map(t => t.conductorId));
+
+    const availDrivers = drivers.filter(d => !busyDriverIds.has(d.id));
+    const availConductors = conductors.filter(c => !busyConductorIds.has(c.id));
+
+    const dTotal = drivers.length;
+    const cTotal = conductors.length;
+    const dAvail = availDrivers.length;
+    const cAvail = availConductors.length;
+
+    let cls = 'dash-cal-cell';
+    if (dAvail === 0 && cAvail === 0 && dTotal + cTotal > 0) cls += ' dash-cal-none';
+    else if (dAvail < dTotal || cAvail < cTotal) cls += ' dash-cal-some';
+    else if (dTotal + cTotal > 0) cls += ' dash-cal-all';
+    if (isToday) cls += ' dash-cal-today';
+
+    b += `<div class="${cls}" onclick="dashCalShowDay('${dateStr}')">
+      <div class="dash-cal-daynum">${day}</div>
+      <div class="dash-cal-info">${dAvail}/${dTotal} D</div>
+      <div class="dash-cal-info">${cAvail}/${cTotal} C</div>
+    </div>`;
+
+    day++;
+  }
+
+  // Pad remaining cells to complete the week
+  const totalCells = firstDay + daysInMonth;
+  const remainder = totalCells % 7;
+  if (remainder > 0) {
+    for (let i = 0; i < 7 - remainder; i++) b += '<div class="dash-cal-cell dash-cal-empty"></div>';
+  }
+
+  b += '</div>';
+  grid.innerHTML = h + b;
+}
+
+function dashCalShowDay(dateStr) {
+  const modalDate = document.getElementById('dashCalModalDate');
+  const modalBody = document.getElementById('dashCalModalBody');
+  if (!modalDate || !modalBody) return;
+
+  const d = new Date(dateStr + 'T00:00:00');
+  modalDate.textContent = d.toLocaleDateString('en-PH', { weekday:'long', year:'numeric', month:'long', day:'numeric' });
+
+  const drivers   = _dashCalEmployees.filter(e => e.position === 'DRIVER'   && e.isActive);
+  const conductors = _dashCalEmployees.filter(e => e.position === 'CONDUCTOR' && e.isActive);
+  const dayTrips = _dashCalTrips.filter(t => t.tripDate === dateStr);
+  const busyDriverIds = new Set(dayTrips.map(t => t.driverId));
+  const busyConductorIds = new Set(dayTrips.map(t => t.conductorId));
+
+  const availDrivers = drivers.filter(d => !busyDriverIds.has(d.id));
+  const availConductors = conductors.filter(c => !busyConductorIds.has(c.id));
+
+  let html = '';
+  html += `<div class="mb-2"><strong><i class="fas fa-user me-1"></i>Drivers (${availDrivers.length}/${drivers.length} available)</strong></div>`;
+  if (!availDrivers.length) {
+    html += '<div class="text-muted small mb-2">No drivers available</div>';
+  } else {
+    html += '<div class="mb-2" style="font-size:0.85rem">';
+    availDrivers.forEach(d => { html += `<div style="white-space:nowrap">• ${d.fullName}</div>`; });
+    html += '</div>';
+  }
+
+  html += `<div class="mb-1"><strong><i class="fas fa-user me-1"></i>Conductors (${availConductors.length}/${conductors.length} available)</strong></div>`;
+  if (!availConductors.length) {
+    html += '<div class="text-muted small">No conductors available</div>';
+  } else {
+    html += '<div style="font-size:0.85rem">';
+    availConductors.forEach(c => { html += `<div style="white-space:nowrap">• ${c.fullName}</div>`; });
+    html += '</div>';
+  }
+
+  modalBody.innerHTML = html;
+  new bootstrap.Modal(document.getElementById('dashCalModal')).show();
+}
+
 // ══════════════════════════════════════════════════════════
 // FINANCE MANAGEMENT
 // ══════════════════════════════════════════════════════════
@@ -2811,7 +3224,7 @@ function getBiMonthlyPeriod(offset = 0) {
 }
 
 async function renderFinance() {
-  if (!isAdmin()) { go('trips'); return; }
+  if (!isAdmin()) { go('dashboard'); return; }
   _financePeriod = getBiMonthlyPeriod(_finOffset);
 
   shell('finance', `
