@@ -21,8 +21,9 @@ import java.util.Objects;
  * /api/trips/date      GET ?date=YYYY-MM-DD
  * /api/trips/range     GET ?from=YYYY-MM-DD&to=YYYY-MM-DD
  *
- * /api/trips/{id}/income    GET, POST
- * /api/trips/{id}/expenses  GET, POST
+ * /api/trips/{id}/start      POST (start trip — SCHEDULED -> ONGOING)
+ * /api/trips/{id}/income     GET, POST
+ * /api/trips/{id}/expenses   GET, POST
  */
 @WebServlet("/api/trips/*")
 public class TripServlet extends HttpServlet {
@@ -56,7 +57,8 @@ public class TripServlet extends HttpServlet {
 
     private static final Map<String, String> ARRIVAL_DIFF_LABELS = labels(
         "arrivalTime", "Arrival Time",
-        "arrivalDate", "Arrival Date"
+        "arrivalDate", "Arrival Date",
+        "tripCount", "Trip Count"
     );
 
     private static final Map<String, String> INCOME_DIFF_LABELS = labels(
@@ -152,6 +154,20 @@ public class TripServlet extends HttpServlet {
             int userId = (int) req.getAttribute("userId");
             String username = (String) req.getAttribute("username");
 
+            // POST /api/trips/{id}/start — start trip (SCHEDULED -> ONGOING)
+            if (pathInfo != null && pathInfo.matches("/\\d+/start")) {
+                int tripId = Integer.parseInt(pathInfo.split("/")[1]);
+                var trip = tripDAO.findById(tripId);
+                if (trip == null) { ResponseUtil.error(res, 404, "Trip not found"); return; }
+                if (!"SCHEDULED".equals(trip.get("status"))) {
+                    ResponseUtil.error(res, 400, "Only scheduled trips can be started"); return;
+                }
+                tripDAO.startTrip(tripId);
+                auditDAO.log(userId, username, "START_TRIP", "TRIP", tripId, null);
+                ResponseUtil.success(res, Map.of("started", true));
+                return;
+            }
+
             // POST /api/trips/{id}/income
             if (pathInfo != null && pathInfo.matches("/\\d+/income")) {
                 int tripId = Integer.parseInt(pathInfo.split("/")[1]);
@@ -166,16 +182,6 @@ public class TripServlet extends HttpServlet {
                     bd(body, "conductorBond"),
                     bd(body, "commission")
                 );
-                
-                if (before != null) {
-                    boolean changed = diffBD(before, body, "grossIncome") ||
-                                      diffBD(before, body, "driverIncome") ||
-                                      diffBD(before, body, "conductorIncome") ||
-                                      diffBD(before, body, "driverBond") ||
-                                      diffBD(before, body, "conductorBond") ||
-                                      diffBD(before, body, "commission");
-                    if (changed) tripDAO.markModified(tripId, userId);
-                }
                 
                 String details = (before == null) ? "Income recorded" : DiffUtil.diff(before, saved, INCOME_DIFF_LABELS);
                 auditDAO.log(userId, username, "CREATE_INCOME", "TRIP", tripId, details);
@@ -202,17 +208,6 @@ public class TripServlet extends HttpServlet {
                     bd(body, "otherExpenses")
                 );
 
-                if (before != null) {
-                    boolean changed = diffBD(before, body, "diesel") || diffBD(before, body, "washing") ||
-                                      diffBD(before, body, "driverSalary") || diffBD(before, body, "overtime") ||
-                                      diffBD(before, body, "nightDiff") || diffBD(before, body, "bonus") ||
-                                      diffBD(before, body, "cashAdvance") || diffBD(before, body, "damages") ||
-                                      diffBD(before, body, "otherExpenses") ||
-                                      !Objects.equals(normStr((String) before.get("damageRemark")), normStr(damageRemark)) ||
-                                      !Objects.equals(before.get("employeeId"), employeeId);
-                    if (changed) tripDAO.markModified(tripId, userId);
-                }
-
                 String details = (before == null) ? "Expenses recorded" : DiffUtil.diff(before, saved, EXPENSES_DIFF_LABELS);
                 auditDAO.log(userId, username, "CREATE_EXPENSES", "TRIP", tripId, details);
                 ResponseUtil.created(res, saved);
@@ -226,6 +221,8 @@ public class TripServlet extends HttpServlet {
             String arrivalTime = (String) body.getOrDefault("arrivalTime", null);
             LocalDate arrivalDate = resolveArrivalDate(tripDate, dispatchTime, arrivalTime,
                 (String) body.getOrDefault("arrivalDate", null));
+            Integer tripCount = body.get("tripCount") != null
+                ? ((Number) body.get("tripCount")).intValue() : null;
             var created = tripDAO.create(
                 tripDate,
                 (int) body.get("busId"),
@@ -234,7 +231,7 @@ public class TripServlet extends HttpServlet {
                 dispatchTime,
                 arrivalTime,
                 arrivalDate,
-                (int) body.getOrDefault("tripCount", 0),
+                tripCount,
                 (String) body.getOrDefault("remarks", null),
                 userId
             );
@@ -255,7 +252,7 @@ public class TripServlet extends HttpServlet {
         }
     }
 
-    /** PATCH /api/trips/{id} — update arrival time only (staff + admin) */
+    /** PATCH /api/trips/{id} — set arrival time + trip count, transition to FINISHED */
     private void doPatch(HttpServletRequest req, HttpServletResponse res) throws IOException {
         try {
             String pathInfo = req.getPathInfo();
@@ -268,6 +265,18 @@ public class TripServlet extends HttpServlet {
 
             Map<String, Object> body = ResponseUtil.parseBody(req);
             String arrivalTime = (String) body.getOrDefault("arrivalTime", null);
+            Object tripCountObj = body.get("tripCount");
+
+            if (arrivalTime == null || arrivalTime.isBlank()) {
+                // Clearing arrival time — not supported in new system
+                ResponseUtil.error(res, 400, "Arrival time is required");
+                return;
+            }
+            if (tripCountObj == null) {
+                ResponseUtil.error(res, 400, "Trip count is required to finish a trip");
+                return;
+            }
+            int tripCount = ((Number) tripCountObj).intValue();
 
             var trip = tripDAO.findById(id);
             if (trip == null) { ResponseUtil.error(res, 404, "Trip not found"); return; }
@@ -275,16 +284,18 @@ public class TripServlet extends HttpServlet {
                 (LocalDate) trip.get("tripDate"), (String) trip.get("dispatchTime"),
                 arrivalTime, (String) body.getOrDefault("arrivalDate", null));
 
-            boolean updated = tripDAO.updateArrival(id, arrivalTime, arrivalDate);
+            boolean updated = tripDAO.finishTrip(id, arrivalTime, arrivalDate, tripCount);
             if (updated) {
-                Map<String, Object> arrivalBefore = new LinkedHashMap<>();
-                arrivalBefore.put("arrivalTime", normTime((String) trip.get("arrivalTime")));
-                arrivalBefore.put("arrivalDate", trip.get("arrivalDate"));
-                Map<String, Object> arrivalAfter = new LinkedHashMap<>();
-                arrivalAfter.put("arrivalTime", normTime(arrivalTime));
-                arrivalAfter.put("arrivalDate", arrivalDate);
-                auditDAO.log(userId, username, "UPDATE_ARRIVAL", "TRIP", id,
-                    DiffUtil.diff(arrivalBefore, arrivalAfter, ARRIVAL_DIFF_LABELS));
+                Map<String, Object> before = new LinkedHashMap<>();
+                before.put("arrivalTime", normTime((String) trip.get("arrivalTime")));
+                before.put("arrivalDate", trip.get("arrivalDate"));
+                before.put("tripCount", trip.get("tripCount"));
+                Map<String, Object> after = new LinkedHashMap<>();
+                after.put("arrivalTime", normTime(arrivalTime));
+                after.put("arrivalDate", arrivalDate);
+                after.put("tripCount", tripCount);
+                auditDAO.log(userId, username, "FINISH_TRIP", "TRIP", id,
+                    DiffUtil.diff(before, after, ARRIVAL_DIFF_LABELS));
             }
             ResponseUtil.success(res, Map.of("updated", updated));
 
@@ -314,7 +325,8 @@ public class TripServlet extends HttpServlet {
             String bodyArrivalTime = (String) body.getOrDefault("arrivalTime", null);
             LocalDate bodyArrivalDate = resolveArrivalDate(bodyTripDate, bodyDispatchTime, bodyArrivalTime,
                 (String) body.getOrDefault("arrivalDate", null));
-            int bodyTripCount = (int) body.getOrDefault("tripCount", 0);
+            Integer bodyTripCount = body.get("tripCount") != null
+                ? ((Number) body.get("tripCount")).intValue() : null;
             String bodyRemarks = (String) body.getOrDefault("remarks", null);
 
             boolean changed = !Objects.equals(before.get("tripDate"), bodyTripDate)
@@ -342,8 +354,7 @@ public class TripServlet extends HttpServlet {
                 bodyArrivalTime,
                 bodyArrivalDate,
                 bodyTripCount,
-                bodyRemarks,
-                editorId
+                bodyRemarks
             );
 
             if (updated) {
@@ -398,14 +409,5 @@ public class TripServlet extends HttpServlet {
 
     private String normStr(String s) {
         return (s == null || s.isBlank()) ? null : s.trim();
-    }
-
-    private boolean diffBD(Map<String, Object> existing, Map<String, Object> body, String key) {
-        if (existing == null) return false;
-        java.math.BigDecimal oldVal = (java.math.BigDecimal) existing.get(key);
-        java.math.BigDecimal newVal = bd(body, key);
-        if (oldVal == null && newVal == null) return false;
-        if (oldVal == null || newVal == null) return true;
-        return oldVal.compareTo(newVal) != 0;
     }
 }
