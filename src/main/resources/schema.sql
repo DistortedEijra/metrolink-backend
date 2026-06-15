@@ -36,6 +36,8 @@ CREATE TABLE IF NOT EXISTS employees (
     position        ENUM('DRIVER','CONDUCTOR','HR','OPERATIONS','MECHANIC') NOT NULL,
     daily_rate      DECIMAL(10,2) NULL DEFAULT NULL,          -- DRIVER / CONDUCTOR only
     bi_monthly_rate DECIMAL(10,2) NULL DEFAULT NULL,          -- HR / OPERATIONS / MECHANIC only
+    license_no      VARCHAR(50),
+    license_expiry  DATE,
     is_active       BOOLEAN NOT NULL DEFAULT TRUE,
     created_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
